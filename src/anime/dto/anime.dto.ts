@@ -28,10 +28,4 @@ export interface AnimeDto {
   emissionStatus: EmissionStatus;
   releaseYear: number | null;
   genres: GenreDto[];
-  score: number | null;
-  rating: string | null;
-  season: string | null;
-  status: string | null;
-  studios: string[];
-  trailerUrl: string | null;
 }
