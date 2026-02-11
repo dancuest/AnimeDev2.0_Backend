@@ -1,0 +1,42 @@
+{
+  "info": {
+    "name": "AnimeDev Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "Top Anime",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/anime/top?limit=10"
+      }
+    },
+    {
+      "name": "Search Anime",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/anime/search?q=naruto&limit=10"
+      }
+    },
+    {
+      "name": "Anime Detail",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/anime/1"
+      }
+    }
+  ]
+}
