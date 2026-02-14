@@ -20,31 +20,26 @@ export class AnimeMapper {
   toAnimeDto(anime: JikanAnime): AnimeDto {
     const durationMinutes = this.parseDurationMinutes(anime.duration ?? '');
     const durationType = this.toDurationType(durationMinutes);
-    const emissionStatus = this.toEmissionStatus(anime.status ?? '');
+    const emissionStatus = this.toEmissionStatus(anime.status ?? '', anime.airing ?? null);
     const coverImageUrl =
-      anime.images?.jpg?.large_image_url ??
       anime.images?.jpg?.image_url ??
+      anime.images?.webp?.image_url ??
       '';
+    const title = anime.title ?? '';
 
     return {
       id: anime.mal_id,
       externalApiId: String(anime.mal_id),
-      title: anime.title ?? '',
+      title,
       originalTitle: anime.title_japanese ?? anime.title_english ?? null,
       synopsis: anime.synopsis ?? '',
       coverImageUrl,
-      mangaPlusUrl: this.buildMangaPlusUrl(anime.title ?? ''),
+      mangaPlusUrl: this.buildMangaPlusUrl(title),
       totalEpisodes: anime.episodes ?? null,
       durationType,
       emissionStatus,
       releaseYear: anime.year ?? null,
       genres: (anime.genres ?? []).map((genre) => this.toGenreDto(genre)),
-      score: anime.score ?? null,
-      rating: anime.rating ?? null,
-      season: anime.season ?? null,
-      status: anime.status ?? null,
-      studios: (anime.studios ?? []).map((studio) => studio.name),
-      trailerUrl: anime.trailer?.url ?? anime.trailer?.embed_url ?? null,
     };
   }
 
@@ -57,19 +52,23 @@ export class AnimeMapper {
       return DurationType.SHORT;
     }
 
-    if (minutes <= 30) {
+    if (minutes <= 35) {
       return DurationType.MEDIUM;
     }
 
     return DurationType.LONG;
   }
 
-  private toEmissionStatus(status: string): EmissionStatus {
-    const normalized = status.toLowerCase();
-    if (normalized.includes('airing')) {
+  private toEmissionStatus(status: string, airing: boolean | null): EmissionStatus {
+    if (airing) {
       return EmissionStatus.ON_AIR;
     }
-    if (normalized.includes('finished')) {
+
+    const normalized = status.toLowerCase();
+    if (normalized.includes('currently airing')) {
+      return EmissionStatus.ON_AIR;
+    }
+    if (normalized.includes('finished airing')) {
       return EmissionStatus.FINISHED;
     }
     return EmissionStatus.ON_BREAK;

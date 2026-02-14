@@ -19,8 +19,13 @@ export interface JikanAnime {
       image_url?: string;
       large_image_url?: string;
     };
+    webp?: {
+      image_url?: string;
+      large_image_url?: string;
+    };
   };
   status?: string | null;
+  airing?: boolean | null;
   episodes?: number | null;
   duration?: string | null;
   score?: number | null;

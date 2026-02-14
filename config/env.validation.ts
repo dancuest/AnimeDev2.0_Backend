@@ -17,6 +17,11 @@ class EnvironmentVariables {
   @IsInt()
   @Min(1)
   CACHE_TTL_SECONDS?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  SHORT_CACHE_TTL_SECONDS?: number;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
