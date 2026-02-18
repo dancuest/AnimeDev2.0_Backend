@@ -1,6 +1,6 @@
 # AnimeDev Backend
 
-Backend API for the AnimeDev Android app (NestJS + Jikan v4).
+Backend API de AnimeDev Android app (NestJS + Jikan v4).
 
 ## Requisitos
 
@@ -15,7 +15,7 @@ npm install
 
 ## Variables de entorno
 
-Copia el archivo de ejemplo y ajusta según sea necesario:
+
 
 ```bash
 cp .env.example .env
