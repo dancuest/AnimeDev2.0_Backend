@@ -9,5 +9,6 @@ import { AnimeService } from './anime.service';
   imports: [HttpModule],
   controllers: [AnimeController, GenresController],
   providers: [AnimeService, AnimeMapper],
+  exports: [AnimeService],
 })
 export class AnimeModule {}

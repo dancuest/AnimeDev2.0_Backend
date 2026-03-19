@@ -12,13 +12,8 @@ import { JikanAnime, JikanDetailResponse, JikanListResponse } from './types/jika
 @Injectable()
 export class AnimeService {
   private readonly baseUrl: string;
-
-  /**
-   * TTL en SEGUNDOS (estándar Nest)
-   */
-  private readonly cacheTtlSeconds: number;
-  private readonly shortCacheTtlSeconds: number;
-
+  private readonly cacheTtlMs: number;
+  private readonly shortCacheTtlMs: number;
   private static readonly ADULT_GENRE_IDS = new Set(['9', '12', '49']);
 
   constructor(
@@ -27,26 +22,9 @@ export class AnimeService {
     private readonly mapper: AnimeMapper,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {
-    this.baseUrl =
-      this.configService.get<string>('jikanBaseUrl') ?? 'https://api.jikan.moe/v4';
-
-    // Preferimos *Seconds*. Si solo tienes *Ms* en config, convertimos a segundos.
-    this.cacheTtlSeconds = this.resolveTtlSeconds('cacheTtlSeconds', 'cacheTtlMs', 600); // 10 min
-    this.shortCacheTtlSeconds = this.resolveTtlSeconds('shortCacheTtlSeconds', 'shortCacheTtlMs', 60); // 1 min
-  }
-
-  /**
-   * Lee TTL desde config en segundos si existe.
-   * Si solo existe en ms, convierte a segundos (ceil para no quedar en 0).
-   */
-  private resolveTtlSeconds(secondsKey: string, msKey: string, fallbackSeconds: number): number {
-    const seconds = this.configService.get<number>(secondsKey);
-    if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) return Math.floor(seconds);
-
-    const ms = this.configService.get<number>(msKey);
-    if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) return Math.max(1, Math.ceil(ms / 1000));
-
-    return fallbackSeconds;
+    this.baseUrl = this.configService.get<string>('jikanBaseUrl') ?? 'https://api.jikan.moe/v4';
+    this.cacheTtlMs = this.configService.get('cacheTtlMs') ?? 600_000;
+    this.shortCacheTtlMs = this.configService.get('shortCacheTtlMs') ?? 60_000;
   }
 
   /**
@@ -62,7 +40,6 @@ export class AnimeService {
 
   async getTop(limit = 10, requestId?: string, includeAdult?: boolean) {
     const cacheKey = `anime:top:${limit}:${includeAdult === true ? 'all' : 'sfw'}`;
-
     const data = await this.getCached(
       cacheKey,
       async () => {
@@ -73,12 +50,14 @@ export class AnimeService {
         );
         return response.data.map((anime) => this.mapper.toAnimeDto(anime));
       },
-      this.shortCacheTtlSeconds,
+      this.shortCacheTtlMs,
     );
 
     return {
       data,
-      meta: { limit },
+      meta: {
+        limit,
+      },
     };
   }
 
@@ -107,7 +86,9 @@ export class AnimeService {
       return this.mapper.toAnimeDto(response.data);
     });
 
-    return { data: anime };
+    return {
+      data: anime,
+    };
   }
 
   async getDetail(id: number, requestId?: string): Promise<{ data: AnimeDetailDto }> {
@@ -122,12 +103,13 @@ export class AnimeService {
       };
     });
 
-    return { data: detail };
+    return {
+      data: detail,
+    };
   }
 
   async getHero(requestId?: string): Promise<{ data: AnimeDto }> {
     const cacheKey = 'anime:hero';
-
     const anime = await this.getCached(
       cacheKey,
       async () => {
@@ -136,9 +118,7 @@ export class AnimeService {
           this.withSfw({ limit: 10 }, false),
           requestId,
         );
-
         const items = response.data.map((item) => this.mapper.toAnimeDto(item));
-
         if (items.length === 0) {
           throw new HttpException(
             {
@@ -150,10 +130,9 @@ export class AnimeService {
             HttpStatus.SERVICE_UNAVAILABLE,
           );
         }
-
         return items[Math.floor(Math.random() * items.length)];
       },
-      this.shortCacheTtlSeconds,
+      this.shortCacheTtlMs,
     );
 
     return { data: anime };
@@ -173,13 +152,14 @@ export class AnimeService {
 
     return {
       data: response.data.map((anime) => this.mapper.toAnimeDto(anime)),
-      meta: { limit },
+      meta: {
+        limit,
+      },
     };
   }
 
   async getGenres(includeAdult = true, requestId?: string): Promise<{ data: GenreDto[] }> {
     const cacheKey = `anime:genres:${includeAdult ? 'all' : 'safe'}`;
-
     const genres = await this.getCached(
       cacheKey,
       async () => {
@@ -189,14 +169,15 @@ export class AnimeService {
           requestId,
         );
         const mappedGenres = response.data.map((genre) => this.mapper.toGenreDto(genre));
-
         if (includeAdult) return mappedGenres;
         return mappedGenres.filter((genre) => !AnimeService.ADULT_GENRE_IDS.has(genre.id));
       },
-      this.shortCacheTtlSeconds,
+      this.shortCacheTtlMs,
     );
 
-    return { data: genres };
+    return {
+      data: genres,
+    };
   }
 
   private async fetchList<T>(
@@ -214,10 +195,7 @@ export class AnimeService {
     }
   }
 
-  private async fetchDetail<T>(
-    endpoint: string,
-    requestId?: string,
-  ): Promise<JikanDetailResponse<T>> {
+  private async fetchDetail<T>(endpoint: string, requestId?: string): Promise<JikanDetailResponse<T>> {
     try {
       const response = await lastValueFrom(
         this.httpService.get<JikanDetailResponse<T>>(`${this.baseUrl}${endpoint}`),
@@ -228,20 +206,12 @@ export class AnimeService {
     }
   }
 
-  /**
-   * Cache helper (TTL en SEGUNDOS)
-   * Nota: el 3er parámetro de cacheManager.set en tu versión espera number, no { ttl }.
-   */
-  private async getCached<T>(
-    key: string,
-    fetcher: () => Promise<T>,
-    ttlSeconds: number = this.cacheTtlSeconds,
-  ): Promise<T> {
+  private async getCached<T>(key: string, fetcher: () => Promise<T>, ttlMs = this.cacheTtlMs): Promise<T> {
     const cached = await this.cacheManager.get<T>(key);
     if (cached !== undefined && cached !== null) return cached;
 
     const fresh = await fetcher();
-    await this.cacheManager.set(key, fresh, ttlSeconds); // ✅ number
+    await this.cacheManager.set(key, fresh, ttlMs);
     return fresh;
   }
 
@@ -254,9 +224,7 @@ export class AnimeService {
 
     const upstreamStatus = axiosError.response?.status;
     const statusCode =
-      upstreamStatus && upstreamStatus >= 500
-        ? HttpStatus.SERVICE_UNAVAILABLE
-        : HttpStatus.BAD_GATEWAY;
+      upstreamStatus && upstreamStatus >= 500 ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
 
     const upstreamMessage = axiosError.response?.data?.message ?? axiosError.response?.data?.error;
     const fallbackMessage = `Jikan upstream request failed at ${endpoint}`;
@@ -275,8 +243,12 @@ export class AnimeService {
 
   private buildCulturalNotes(anime: AnimeDto, source: JikanAnime): string[] {
     const notes: string[] = [];
-    if (anime.releaseYear) notes.push(`Estrenado en ${anime.releaseYear}.`);
-    if (source.season) notes.push(`Temporada original: ${source.season}.`);
+    if (anime.releaseYear) {
+      notes.push(`Estrenado en ${anime.releaseYear}.`);
+    }
+    if (source.season) {
+      notes.push(`Temporada original: ${source.season}.`);
+    }
     if (source.studios && source.studios.length > 0) {
       const studioNames = source.studios.slice(0, 2).map((studio) => studio.name).join(', ');
       notes.push(`Producción a cargo de ${studioNames}.`);

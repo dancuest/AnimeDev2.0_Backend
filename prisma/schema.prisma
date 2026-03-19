@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String            @id @default(uuid())
+  deviceId      String?           @unique
+  createdAt     DateTime          @default(now())
+  email         String?           @unique
+  password      String?
+  displayName   String?
+  avatarUrl     String?
+  coverImageUrl String?
+  updatedAt     DateTime          @updatedAt
+  interactions  UserInteraction[]
+  settings      UserSettings?
+}
+
+model UserSettings {
+  userId             String   @id
+  ageRange           Int      @default(0)
+  genderCode         Int      @default(0)
+  regionCode         Int      @default(0)
+  preferredGenres    Int[]    @default([])
+  toggles            Json     @default("{}")
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  preferredDurations String[] @default([])
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserInteraction {
+  id        String          @id @default(uuid())
+  userId    String
+  animeId   Int
+  type      InteractionType
+  payload   Json?
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, animeId])
+  @@index([userId, type])
+}
+
+enum InteractionType {
+  FAVORITE
+  UNFAVORITE
+  TRIVIA_SCORE
+  VIEW
+  DISLIKE
+}

@@ -1,0 +1,8 @@
+# Forzar LF en el repo (evita diffs basura por CRLF)
+*.ts     text eol=lf
+*.prisma text eol=lf
+*.toml   text eol=lf
+*.sql    text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.env    text eol=lf
