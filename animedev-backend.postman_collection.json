@@ -7,6 +7,10 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:3000"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
     }
   ],
   "item": [
@@ -36,6 +40,43 @@
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/anime/1"
+      }
+    },
+    {
+      "name": "Create Interaction",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"animeId\": 1,\n  \"type\": \"TRIVIA_SCORE\",\n  \"payload\": {\n    \"score\": 8,\n    \"total\": 10\n  }\n}"
+        },
+        "url": "{{baseUrl}}/interactions"
+      }
+    },
+    {
+      "name": "My Interactions",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}",
+            "type": "text"
+          }
+        ],
+        "url": "{{baseUrl}}/interactions/me?limit=50"
       }
     }
   ]

@@ -1,5 +1,12 @@
 import { plainToInstance } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUrl, Min } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { validateSync } from 'class-validator';
 
 class EnvironmentVariables {
@@ -22,15 +29,28 @@ class EnvironmentVariables {
   @IsInt()
   @Min(30)
   SHORT_CACHE_TTL_SECONDS?: number;
+
+  
+  @IsOptional()
+  @IsString()
+  @MinLength(32)
+  JWT_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  JWT_EXPIRES_IN?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>) {
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
+
   const errors = validateSync(validatedConfig, { skipMissingProperties: true });
+
   if (errors.length > 0) {
     throw new Error(`Environment validation error: ${errors.toString()}`);
   }
+
   return validatedConfig;
 }
