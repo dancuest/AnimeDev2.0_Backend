@@ -1,6 +1,7 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+
 import configuration from '../config/configuration';
 import { validateEnvironment } from '../config/env.validation';
 import { UsersModule } from './users/users.module';
@@ -20,6 +21,7 @@ import { TriviaAdminModule } from './modules/trivia-admin/trivia-admin.module';
       load: [configuration],
       validate: validateEnvironment,
     }),
+
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
