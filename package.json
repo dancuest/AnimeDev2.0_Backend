@@ -26,10 +26,6 @@
     "@nestjs/swagger": "^11.2.6",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
-<<<<<<< HEAD
-=======
-    "@types/bcrypt": "^6.0.0",
->>>>>>> 906a70d (Configurar base tecnica del backend)
     "axios": "^1.7.7",
     "bcrypt": "^6.0.0",
     "cache-manager": "^6.0.0",
@@ -46,6 +42,7 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "eslint": "^8.57.1",

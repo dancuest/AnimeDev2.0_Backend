@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-<<<<<<< HEAD
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { JwtStrategy } from './jwt.strategy'; 
+import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
@@ -18,21 +17,13 @@ import { JwtStrategy } from './jwt.strategy';
         return {
           secret,
           signOptions: {
-            expiresIn: expiresIn as any, 
+            expiresIn: expiresIn as any,
           },
         };
       },
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    JwtStrategy
-  ],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}
-=======
-
-@Module({})
-export class AuthModule {}
->>>>>>> 906a70d (Configurar base tecnica del backend)

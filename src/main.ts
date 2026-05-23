@@ -1,10 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-<<<<<<< HEAD
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-=======
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
->>>>>>> 906a70d (Configurar base tecnica del backend)
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
@@ -61,12 +57,6 @@ async function bootstrap() {
       'access-token',
     )
     .build();
-<<<<<<< HEAD
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
-=======
->>>>>>> 906a70d (Configurar base tecnica del backend)
 
   const document = SwaggerModule.createDocument(app, config);
 

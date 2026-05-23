@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,19 +8,6 @@ datasource db {
 }
 
 model User {
-<<<<<<< HEAD
-  id            String            @id @default(uuid())
-  deviceId      String?           @unique
-  createdAt     DateTime          @default(now())
-  email         String?           @unique
-  password      String?
-  displayName   String?
-  avatarUrl     String?
-  coverImageUrl String?
-  updatedAt     DateTime          @updatedAt
-  interactions  UserInteraction[]
-  settings      UserSettings?
-=======
   id                     String    @id @default(uuid())
   deviceId               String?   @unique
   createdAt              DateTime  @default(now())
@@ -39,7 +27,6 @@ model User {
 
   createdTriviaQuestions  TriviaQuestion[] @relation("CreatedTriviaQuestions")
   reviewedTriviaQuestions TriviaQuestion[] @relation("ReviewedTriviaQuestions")
->>>>>>> 906a70d (Configurar base tecnica del backend)
 }
 
 model UserSettings {
@@ -52,12 +39,8 @@ model UserSettings {
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
   preferredDurations String[] @default([])
-<<<<<<< HEAD
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-=======
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
->>>>>>> 906a70d (Configurar base tecnica del backend)
 }
 
 model UserInteraction {
@@ -67,19 +50,13 @@ model UserInteraction {
   type      InteractionType
   payload   Json?
   createdAt DateTime        @default(now())
-<<<<<<< HEAD
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-=======
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
->>>>>>> 906a70d (Configurar base tecnica del backend)
 
   @@index([userId, animeId])
   @@index([userId, type])
 }
 
-<<<<<<< HEAD
-=======
 model TriviaQuestion {
   id                 String               @id @default(uuid())
   animeId            Int
@@ -119,15 +96,12 @@ enum UserRole {
   ADMIN
 }
 
->>>>>>> 906a70d (Configurar base tecnica del backend)
 enum InteractionType {
   FAVORITE
   UNFAVORITE
   TRIVIA_SCORE
   VIEW
   DISLIKE
-<<<<<<< HEAD
-=======
 }
 
 enum TriviaDifficulty {
@@ -178,5 +152,4 @@ model TriviaQuestionReport {
   @@index([questionId])
   @@index([animeId])
   @@index([status])
->>>>>>> 906a70d (Configurar base tecnica del backend)
 }
