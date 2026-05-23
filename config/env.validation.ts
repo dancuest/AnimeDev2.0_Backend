@@ -1,14 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import {
-  IsBooleanString,
-  IsEmail,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUrl,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUrl, Min, MinLength } from 'class-validator';
 import { validateSync } from 'class-validator';
 
 class EnvironmentVariables {
@@ -31,19 +22,6 @@ class EnvironmentVariables {
   @IsInt()
   @Min(30)
   SHORT_CACHE_TTL_SECONDS?: number;
-
-  @IsOptional()
-  @IsBooleanString()
-  TRANSLATE_SYNOPSES?: string;
-
-  @IsOptional()
-  @IsString()
-  @IsUrl()
-  TRANSLATION_BASE_URL?: string;
-
-  @IsOptional()
-  @IsEmail()
-  TRANSLATION_EMAIL?: string;
 
   @IsOptional()
   @IsString()
