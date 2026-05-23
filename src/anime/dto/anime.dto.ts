@@ -22,7 +22,28 @@ export interface AnimeDto {
   originalTitle: string | null;
   synopsis: string;
   coverImageUrl: string;
+
+  /**
+   * Campo heredado. Se conserva para compatibilidad con el frontend anterior.
+   * Ya no debe usarse como recurso principal.
+   */
   mangaPlusUrl: string;
+
+  /**
+   * Enlace real al manga relacionado cuando Jikan lo proporciona.
+   */
+  mangaUrl: string | null;
+
+  /**
+   * Nombre del manga relacionado cuando existe.
+   */
+  mangaTitle: string | null;
+
+  /**
+   * Enlace al trailer oficial cuando Jikan lo proporciona.
+   */
+  trailerUrl: string | null;
+
   totalEpisodes: number | null;
   durationType: DurationType;
   emissionStatus: EmissionStatus;
