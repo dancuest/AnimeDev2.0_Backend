@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+<<<<<<< HEAD
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -30,3 +31,8 @@ import { JwtStrategy } from './jwt.strategy';
   ],
 })
 export class AuthModule {}
+=======
+
+@Module({})
+export class AuthModule {}
+>>>>>>> 906a70d (Configurar base tecnica del backend)

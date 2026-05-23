@@ -7,10 +7,6 @@ import { validateEnvironment } from '../config/env.validation';
 import { UsersModule } from './users/users.module';
 import { AnimeModule } from './anime/anime.module';
 import { HealthModule } from './health/health.module';
-import { PrismaModule } from '../prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { RecommendationsModule } from './recommendations/recommendations.module';
-import { InteractionsModule } from './interactions/interactions.module';
 
 @Module({
   imports: [
@@ -23,18 +19,23 @@ import { InteractionsModule } from './interactions/interactions.module';
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        ttl: config.get<number>('cacheTtlMs') ?? 600_000,
-      }),
-    }),
+      useFactory: (config: ConfigService) => {
+        // Preferimos segundos (estándar). Si solo hay ms, convertimos.
+        const ttlSecondsRaw = config.get<number>('cacheTtlSeconds');
+        if (typeof ttlSecondsRaw === 'number' && Number.isFinite(ttlSecondsRaw) && ttlSecondsRaw > 0) {
+          return { ttl: Math.floor(ttlSecondsRaw) };
+        }
 
-    PrismaModule,
-    AuthModule,
-    UsersModule,
+        const ttlMsRaw = config.get<number>('cacheTtlMs');
+        if (typeof ttlMsRaw === 'number' && Number.isFinite(ttlMsRaw) && ttlMsRaw > 0) {
+          return { ttl: Math.max(1, Math.ceil(ttlMsRaw / 1000)) };
+        }
+
+        return { ttl: 600 }; // 10 min default
+      },
+    }),
     HealthModule,
     AnimeModule,
-    RecommendationsModule,
-    InteractionsModule,
   ],
 })
 export class AppModule { }

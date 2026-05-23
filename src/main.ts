@@ -1,9 +1,31 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+<<<<<<< HEAD
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+=======
+import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+>>>>>>> 906a70d (Configurar base tecnica del backend)
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
+
+function applyGlobalSwaggerBearerAuth(document: OpenAPIObject) {
+  const securityRequirement = {
+    'access-token': [],
+  };
+
+  document.security = [securityRequirement];
+
+  Object.values(document.paths).forEach((pathItem) => {
+    if (!pathItem) return;
+
+    Object.values(pathItem).forEach((operation: any) => {
+      if (operation && typeof operation === 'object') {
+        operation.security = [securityRequirement];
+      }
+    });
+  });
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -28,12 +50,42 @@ async function bootstrap() {
     .setTitle('AnimeDev Backend')
     .setDescription('API for AnimeDev mobile app')
     .setVersion('0.1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Pega solo el access_token devuelto por /auth/login o /auth/device. No escribas Bearer.',
+      },
+      'access-token',
+    )
     .build();
+<<<<<<< HEAD
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
+=======
+>>>>>>> 906a70d (Configurar base tecnica del backend)
 
-  await app.listen(process.env.PORT ?? 3000);
+  const document = SwaggerModule.createDocument(app, config);
+
+  applyGlobalSwaggerBearerAuth(document);
+
+  SwaggerModule.setup('docs', app, document, {
+    customSiteTitle: 'AnimeDev Backend Docs',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'list',
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+  });
+
+  const port = Number(process.env.PORT ?? 3000);
+
+  await app.listen(port, '0.0.0.0');
 }
 
 bootstrap();

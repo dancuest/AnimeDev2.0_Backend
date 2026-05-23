@@ -1,5 +1,10 @@
 import { plainToInstance } from 'class-transformer';
 import {
+<<<<<<< HEAD
+=======
+  IsBooleanString,
+  IsEmail,
+>>>>>>> 906a70d (Configurar base tecnica del backend)
   IsInt,
   IsOptional,
   IsString,
@@ -30,7 +35,23 @@ class EnvironmentVariables {
   @Min(30)
   SHORT_CACHE_TTL_SECONDS?: number;
 
+<<<<<<< HEAD
   
+=======
+  @IsOptional()
+  @IsBooleanString()
+  TRANSLATE_SYNOPSES?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsUrl()
+  TRANSLATION_BASE_URL?: string;
+
+  @IsOptional()
+  @IsEmail()
+  TRANSLATION_EMAIL?: string;
+
+>>>>>>> 906a70d (Configurar base tecnica del backend)
   @IsOptional()
   @IsString()
   @MinLength(32)
@@ -46,7 +67,13 @@ export function validateEnvironment(config: Record<string, unknown>) {
     enableImplicitConversion: true,
   });
 
+<<<<<<< HEAD
   const errors = validateSync(validatedConfig, { skipMissingProperties: true });
+=======
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: true,
+  });
+>>>>>>> 906a70d (Configurar base tecnica del backend)
 
   if (errors.length > 0) {
     throw new Error(`Environment validation error: ${errors.toString()}`);
