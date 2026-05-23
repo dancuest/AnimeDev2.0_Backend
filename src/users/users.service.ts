@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InteractionType } from '@prisma/client';
+import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AnimeService } from '../anime/anime.service';
+import { InteractionsService } from '../interactions/interactions.service';
 
 type UpdateProfileDto = {
   displayName?: string;
+  nickname?: string;
   email?: string;
   avatarUrl?: string;
   coverImageUrl?: string;
@@ -26,7 +30,8 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly animeService: AnimeService,
-  ) {}
+    private readonly interactionsService: InteractionsService,
+  ) { }
 
   async getMe(userId: string) {
     const [user, stats] = await Promise.all([
@@ -37,9 +42,11 @@ export class UsersService {
           deviceId: true,
           email: true,
           displayName: true,
+          nickname: true,
           avatarUrl: true,
           coverImageUrl: true,
           createdAt: true,
+          role: true,
         },
       }),
       this.buildInteractionStats(userId),
@@ -61,6 +68,7 @@ export class UsersService {
     const emailUpdateValue =
       dto.email === undefined ? undefined : normalizedEmail ? normalizedEmail : null;
 
+    const nicknameUpdateValue = this.normalizeOptionalStringField(dto.nickname);
     const avatarUrlUpdateValue = this.normalizeOptionalStringField(dto.avatarUrl);
     const coverImageUrlUpdateValue = this.normalizeOptionalStringField(dto.coverImageUrl);
 
@@ -69,6 +77,7 @@ export class UsersService {
         where: { id: userId },
         data: {
           displayName: dto.displayName?.trim() || undefined,
+          nickname: nicknameUpdateValue,
           email: emailUpdateValue,
           avatarUrl: avatarUrlUpdateValue,
           coverImageUrl: coverImageUrlUpdateValue,
@@ -78,9 +87,11 @@ export class UsersService {
           deviceId: true,
           email: true,
           displayName: true,
+          nickname: true,
           avatarUrl: true,
           coverImageUrl: true,
           createdAt: true,
+          role: true,
         },
       }),
       this.buildInteractionStats(userId),
@@ -164,6 +175,58 @@ export class UsersService {
     };
   }
 
+  async getFavoriteAnimeIds(userId: string): Promise<number[]> {
+    return this.interactionsService.getFavoriteAnimeIds(userId);
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+      },
+    });
+
+    if (!user || !user.password) {
+      throw new Error('Este usuario no tiene contraseña configurada.');
+    }
+
+    const isValid = await this.verifyExistingPassword(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isValid) {
+      throw new Error('La contraseña actual es incorrecta.');
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('La nueva contraseña debe tener al menos 6 caracteres.');
+    }
+
+    if (currentPassword === newPassword) {
+      throw new Error('La nueva contraseña no puede ser igual a la actual.');
+    }
+
+    const newHash = this.hashPassword(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: newHash,
+      },
+    });
+
+    return {
+      message: 'Contraseña actualizada correctamente.',
+    };
+  }
+
   private async resolvePreferredGenreDetails(preferredGenres: number[]) {
     if (!preferredGenres.length) {
       return [];
@@ -175,13 +238,18 @@ export class UsersService {
       const genreMap = new Map(
         genresCatalog.data.map((genre) => [
           Number(genre.id),
-          { id: Number(genre.id), name: genre.name },
+          {
+            id: Number(genre.id),
+            name: genre.name,
+          },
         ]),
       );
 
       return preferredGenres
         .map((genreId) => genreMap.get(genreId))
-        .filter((genre): genre is { id: number; name: string } => Boolean(genre));
+        .filter(
+          (genre): genre is { id: number; name: string } => Boolean(genre),
+        );
     } catch (error) {
       this.logger.warn('Could not resolve preferred genre details from catalog');
       return [];
@@ -244,6 +312,50 @@ export class UsersService {
     }
 
     const trimmed = value.trim();
+
     return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private async verifyExistingPassword(
+    password: string,
+    storedHash: string,
+  ): Promise<boolean> {
+    if (!storedHash) {
+      return false;
+    }
+
+    if (storedHash.includes(':')) {
+      return this.verifyScryptPassword(password, storedHash);
+    }
+
+    try {
+      return await bcrypt.compare(password, storedHash);
+    } catch {
+      return false;
+    }
+  }
+
+  private hashPassword(password: string): string {
+    const salt = randomBytes(16).toString('hex');
+    const hash = scryptSync(password, salt, 64).toString('hex');
+
+    return `${salt}:${hash}`;
+  }
+
+  private verifyScryptPassword(password: string, storedHash: string): boolean {
+    const [salt, originalHash] = storedHash.split(':');
+
+    if (!salt || !originalHash) {
+      return false;
+    }
+
+    const computedHash = scryptSync(password, salt, 64);
+    const originalHashBuffer = Buffer.from(originalHash, 'hex');
+
+    if (computedHash.length !== originalHashBuffer.length) {
+      return false;
+    }
+
+    return timingSafeEqual(computedHash, originalHashBuffer);
   }
 }
