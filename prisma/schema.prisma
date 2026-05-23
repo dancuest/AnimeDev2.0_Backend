@@ -7,17 +7,25 @@ datasource db {
 }
 
 model User {
-  id            String            @id @default(uuid())
-  deviceId      String?           @unique
-  createdAt     DateTime          @default(now())
-  email         String?           @unique
-  password      String?
-  displayName   String?
-  avatarUrl     String?
-  coverImageUrl String?
-  updatedAt     DateTime          @updatedAt
-  interactions  UserInteraction[]
-  settings      UserSettings?
+  id                     String    @id @default(uuid())
+  deviceId               String?   @unique
+  createdAt              DateTime  @default(now())
+  email                  String?   @unique
+  password               String?
+  displayName            String?
+  nickname               String?
+  avatarUrl              String?
+  coverImageUrl          String?
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+  updatedAt              DateTime  @updatedAt
+  role                   UserRole  @default(USER)
+
+  interactions UserInteraction[]
+  settings     UserSettings?
+
+  createdTriviaQuestions  TriviaQuestion[] @relation("CreatedTriviaQuestions")
+  reviewedTriviaQuestions TriviaQuestion[] @relation("ReviewedTriviaQuestions")
 }
 
 model UserSettings {
@@ -30,7 +38,8 @@ model UserSettings {
   updatedAt          DateTime @updatedAt
   createdAt          DateTime @default(now())
   preferredDurations String[] @default([])
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserInteraction {
@@ -40,10 +49,50 @@ model UserInteraction {
   type      InteractionType
   payload   Json?
   createdAt DateTime        @default(now())
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, animeId])
   @@index([userId, type])
+}
+
+model TriviaQuestion {
+  id                 String               @id @default(uuid())
+  animeId            Int
+  externalAnimeId    String?
+  question           String
+  options            Json
+  correctAnswerIndex Int
+  explanation        String?
+  difficulty         TriviaDifficulty
+  category           TriviaCategory       @default(GENERAL)
+  status             TriviaQuestionStatus @default(PENDING)
+  source             TriviaQuestionSource @default(USER_SUBMITTED)
+
+  createdByUserId  String?
+  reviewedByUserId String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  reviewedAt DateTime?
+
+  createdBy  User? @relation("CreatedTriviaQuestions", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy User? @relation("ReviewedTriviaQuestions", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([animeId])
+  @@index([animeId, status])
+  @@index([animeId, status, difficulty])
+  @@index([createdByUserId])
+  @@index([reviewedByUserId])
+  @@index([status])
+  @@index([difficulty])
+  @@index([category])
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
 }
 
 enum InteractionType {
@@ -52,4 +101,54 @@ enum InteractionType {
   TRIVIA_SCORE
   VIEW
   DISLIKE
+}
+
+enum TriviaDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum TriviaCategory {
+  CHARACTER
+  AUTHOR
+  SETTING
+  VALUES
+  RELIGION
+  RACES
+  PLOT
+  WORLD_BUILDING
+  PRODUCTION
+  GENERAL
+}
+
+enum TriviaQuestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TriviaQuestionSource {
+  OFFICIAL
+  USER_SUBMITTED
+}
+
+model TriviaQuestionReport {
+  id               String   @id @default(cuid())
+  questionId       String
+  animeId          Int?
+  animeTitle       String?
+  questionText     String
+  reason           String
+  status           String   @default("PENDING")
+  reporterUserId   String?
+  resolvedByUserId String?
+  adminNote        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  resolvedAt       DateTime?
+
+  @@index([questionId])
+  @@index([animeId])
+  @@index([status])
 }

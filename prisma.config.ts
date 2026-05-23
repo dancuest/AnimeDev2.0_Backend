@@ -1,12 +1,16 @@
-import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+services:
+  db:
+    image: postgres:16
+    container_name: animedev_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: animedev
+      POSTGRES_PASSWORD: animedev
+      POSTGRES_DB: animedev
+    ports:
+      - "5433:5432"
+    volumes:
+      - animedev_pg:/var/lib/postgresql/data
 
-export default defineConfig({
-  schema: "prisma/schema.prisma",
-  migrations: {
-    path: "prisma/migrations",
-  },
-  datasource: {
-    url: env("DATABASE_URL"),
-  },
-});
+volumes:
+  animedev_pg:
