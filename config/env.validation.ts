@@ -38,7 +38,9 @@ export function validateEnvironment(config: Record<string, unknown>) {
     enableImplicitConversion: true,
   });
 
-  const errors = validateSync(validatedConfig, { skipMissingProperties: true });
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: true,
+  });
 
   if (errors.length > 0) {
     throw new Error(`Environment validation error: ${errors.toString()}`);
