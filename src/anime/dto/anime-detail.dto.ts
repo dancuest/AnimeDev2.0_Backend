@@ -11,5 +11,6 @@ export interface TrailerDto {
 export interface AnimeDetailDto {
   anime: AnimeDto;
   culturalNotes: string[];
+
   trailers: TrailerDto[];
 }
