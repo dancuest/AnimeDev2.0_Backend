@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -26,7 +27,9 @@ export class AuthService {
       update: {},
       create: {
         deviceId,
-        settings: { create: {} },
+        settings: {
+          create: {},
+        },
       },
       select: {
         id: true,
@@ -62,37 +65,55 @@ export class AuthService {
 
     const normalizedEmail = this.normalizeEmail(dto.email);
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      select: { id: true },
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: 'insensitive',
+        },
+        NOT: {
+          id: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
     });
 
-    if (existingUser && existingUser.id !== userId) {
+    if (existingUser) {
       throw new ConflictException('Ese correo ya está registrado');
     }
 
     const hashedPassword = this.hashPassword(dto.password);
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        email: normalizedEmail,
-        password: hashedPassword,
-        displayName: dto.displayName?.trim() || undefined,
-        passwordResetToken: null,
-        passwordResetExpiresAt: null,
-      },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        deviceId: true,
-        avatarUrl: true,
-        coverImageUrl: true,
-      },
-    });
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          email: normalizedEmail,
+          password: hashedPassword,
+          displayName: dto.displayName?.trim() || undefined,
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+        },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          deviceId: true,
+          avatarUrl: true,
+          coverImageUrl: true,
+        },
+      });
 
-    return this.buildAuthResponse(updatedUser);
+      return this.buildAuthResponse(updatedUser);
+    } catch (error) {
+      if (this.isUniqueConstraintError(error, 'email')) {
+        throw new ConflictException('Ese correo ya está registrado');
+      }
+
+      throw error;
+    }
   }
 
   async loginWithEmail(email: string, password: string) {
@@ -267,9 +288,32 @@ export class AuthService {
     return email.trim().toLowerCase();
   }
 
+  private isUniqueConstraintError(error: unknown, field?: string): boolean {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+      return false;
+    }
+
+    if (error.code !== 'P2002') {
+      return false;
+    }
+
+    if (!field) {
+      return true;
+    }
+
+    const target = error.meta?.target;
+
+    if (Array.isArray(target)) {
+      return target.includes(field);
+    }
+
+    return String(target).includes(field);
+  }
+
   private hashPassword(password: string): string {
     const salt = randomBytes(16).toString('hex');
     const hash = scryptSync(password, salt, 64).toString('hex');
+
     return `${salt}:${hash}`;
   }
 
