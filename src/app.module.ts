@@ -1,17 +1,19 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+
 import configuration from '../config/configuration';
 import { validateEnvironment } from '../config/env.validation';
-import { UsersModule } from './users/users.module';
-import { AnimeModule } from './anime/anime.module';
-import { HealthModule } from './health/health.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AnimeModule } from './anime/anime.module';
+import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
-import { RecommendationsModule } from './recommendations/recommendations.module';
+import { HealthModule } from './health/health.module';
 import { InteractionsModule } from './interactions/interactions.module';
-import { TriviaModule } from './trivia/trivia.module';
 import { TriviaAdminModule } from './modules/trivia-admin/trivia-admin.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
+import { TriviaModule } from './trivia/trivia.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -37,5 +39,6 @@ import { TriviaAdminModule } from './modules/trivia-admin/trivia-admin.module';
     TriviaModule,
     TriviaAdminModule,
   ],
+  controllers: [AppController],
 })
-export class AppModule { }
+export class AppModule {}
