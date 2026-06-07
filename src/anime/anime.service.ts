@@ -430,7 +430,6 @@ export class AnimeService {
     const themeNames = this.getResourceNames(source.themes);
     const demographicNames = this.getResourceNames(source.demographics);
     const studioNames = this.getResourceNames(source.studios).slice(0, 2);
-    const producerNames = this.getResourceNames(source.producers).slice(0, 2);
     const glossaryTerms = this.buildCulturalGlossary(anime, source);
 
     if (seasonName && anime.releaseYear) {
@@ -459,17 +458,11 @@ export class AnimeService {
       notes.push(setting);
     }
 
-    if (studioNames.length > 0) {
+    glossaryTerms.forEach((entry) => {
       notes.push(
-        `Producción y estilo visual: ${studioNames.join(', ')} ${studioNames.length === 1 ? 'participó' : 'participaron'} en la animación. Identificar el estudio ayuda a reconocer estilos visuales, decisiones de dirección y formas de representar la cultura japonesa o mundos ficticios.`,
+        `Glosario cultural — ${entry.term}: ${entry.meaning} ${entry.context}`,
       );
-    }
-
-    if (producerNames.length > 0) {
-      notes.push(
-        `Industria del anime: ${producerNames.join(', ')} ${producerNames.length === 1 ? 'figura' : 'figuran'} entre las entidades productoras. Esto muestra que el anime suele ser resultado de comités de producción donde participan empresas, editoriales, televisoras o distribuidoras.`,
-      );
-    }
+    });
 
     if (anime.genres.length > 0) {
       const genreNames = anime.genres
@@ -494,27 +487,11 @@ export class AnimeService {
       );
     }
 
-    if (source.broadcast?.string) {
+    if (studioNames.length > 0) {
       notes.push(
-        `Emisión japonesa: ${source.broadcast.string}. Este dato permite entender cómo fue programada originalmente la serie dentro de la televisión japonesa.`,
+        `Producción visual: ${studioNames.join(', ')} ${studioNames.length === 1 ? 'participó' : 'participaron'} en la animación. Reconocer el estudio ayuda a identificar estilos visuales, ritmo narrativo y formas de representar mundos cotidianos o fantásticos.`,
       );
     }
-
-    if (source.background) {
-      const cleanBackground = this.cleanCulturalText(source.background);
-
-      if (cleanBackground) {
-        notes.push(
-          `Dato de contexto: ${cleanBackground}`,
-        );
-      }
-    }
-
-    glossaryTerms.forEach((entry) => {
-      notes.push(
-        `Glosario cultural — ${entry.term}: ${entry.meaning} ${entry.context}`,
-      );
-    });
 
     if (notes.length === 0) {
       notes.push(
@@ -641,15 +618,7 @@ export class AnimeService {
         meaning:
           'categoría editorial asociada tradicionalmente a público juvenil masculino.',
         context:
-          'Suele trabajar superación, amistad, entrenamiento, aventura y crecimiento del protagonista.',
-      },
-      {
-        term: 'Seinen',
-        triggers: ['seinen'],
-        meaning:
-          'categoría editorial orientada generalmente a jóvenes adultos o público adulto.',
-        context:
-          'Suele incluir conflictos más psicológicos, políticos, sociales o moralmente complejos.',
+          'En el anime suele relacionarse con aventura, amistad, entrenamiento, rivalidades, superación personal y protagonistas que crecen enfrentando desafíos.',
       },
       {
         term: 'Shōjo',
@@ -657,7 +626,15 @@ export class AnimeService {
         meaning:
           'categoría editorial asociada tradicionalmente a público juvenil femenino.',
         context:
-          'Suele centrarse en emociones, vínculos personales, romance, identidad y crecimiento interior.',
+          'Suele enfocarse en emociones, vínculos personales, romance, identidad, madurez y conflictos afectivos o sociales.',
+      },
+      {
+        term: 'Seinen',
+        triggers: ['seinen'],
+        meaning:
+          'categoría editorial orientada generalmente a jóvenes adultos o público adulto.',
+        context:
+          'Suele trabajar conflictos más psicológicos, políticos, sociales o moralmente complejos, con un tono más maduro.',
       },
       {
         term: 'Josei',
@@ -665,27 +642,83 @@ export class AnimeService {
         meaning:
           'categoría editorial dirigida principalmente a mujeres adultas.',
         context:
-          'Suele abordar relaciones, vida laboral, madurez emocional y conflictos cotidianos desde una mirada adulta.',
+          'Suele abordar relaciones, vida laboral, independencia, madurez emocional y conflictos cotidianos desde una mirada adulta.',
       },
       {
         term: 'Isekai',
-        triggers: ['isekai', 'another world'],
+        triggers: ['isekai', 'isekay', 'another world', 'mundo alternativo', 'reencarnacion', 'reincarnation'],
         meaning:
           'subgénero donde el protagonista es transportado, invocado o reencarna en otro mundo.',
         context:
-          'Culturalmente se relaciona con fantasías de escape, reinicio de vida y exploración de reglas sociales alternativas.',
+          'Culturalmente se relaciona con fantasías de escape, segundas oportunidades, reinicio de vida y adaptación a sociedades con reglas distintas.',
+      },
+      {
+        term: 'Yuri / Girls Love',
+        triggers: ['yuri', 'girls love', 'amor entre chicas', 'shoujo ai', 'shojo ai'],
+        meaning:
+          'género o etiqueta narrativa centrada en vínculos afectivos o románticos entre personajes femeninos.',
+        context:
+          'Puede ir desde relaciones sutiles y emocionales hasta historias románticas explícitas, dependiendo del tono de la obra.',
+      },
+      {
+        term: 'Yaoi / Boys Love',
+        triggers: ['yaoi', 'boys love', 'amor entre chicos', 'shounen ai', 'shonen ai'],
+        meaning:
+          'género o etiqueta narrativa centrada en vínculos afectivos o románticos entre personajes masculinos.',
+        context:
+          'En la cultura del manga y anime suele asociarse al mercado Boys Love, con historias románticas, dramáticas o emocionales.',
       },
       {
         term: 'Mecha',
-        triggers: ['mecha', 'robot', 'robots'],
+        triggers: ['mecha', 'robot', 'robots', 'robot gigante', 'ciencia ficcion'],
         meaning:
           'subgénero centrado en robots gigantes, tecnología militar o máquinas pilotadas.',
         context:
-          'Puede representar tensiones entre humanidad, guerra, tecnología y poder político.',
+          'Puede representar tensiones entre humanidad, guerra, tecnología, poder político e identidad personal.',
+      },
+      {
+        term: 'Mahō shōjo',
+        triggers: ['mahou shoujo', 'mahou shojo', 'magical girl', 'chica magica'],
+        meaning:
+          'subgénero de chicas mágicas donde personajes jóvenes adquieren poderes especiales.',
+        context:
+          'Suele combinar transformación, amistad, responsabilidad, identidad, fantasía y crecimiento personal.',
+      },
+      {
+        term: 'Slice of Life',
+        triggers: ['slice of life', 'recuentos de la vida', 'vida cotidiana'],
+        meaning:
+          'género centrado en experiencias cotidianas, relaciones simples y momentos de la vida diaria.',
+        context:
+          'Permite observar costumbres escolares, familiares, laborales o comunitarias desde una mirada tranquila y cercana.',
+      },
+      {
+        term: 'Iyashikei',
+        triggers: ['iyashikei'],
+        meaning:
+          'subgénero asociado a historias calmadas, contemplativas o reconfortantes.',
+        context:
+          'Busca generar una sensación de tranquilidad o sanación emocional mediante ambientes cotidianos, naturaleza o vínculos amables.',
+      },
+      {
+        term: 'Ecchi',
+        triggers: ['ecchi'],
+        meaning:
+          'etiqueta asociada a humor sugerente, fanservice o situaciones picantes sin llegar necesariamente al contenido adulto explícito.',
+        context:
+          'En el anime comercial suele usarse como recurso cómico o de atracción visual, aunque puede variar mucho según la obra.',
+      },
+      {
+        term: 'Harén',
+        triggers: ['harem', 'haren', 'harén'],
+        meaning:
+          'estructura narrativa donde un personaje central está rodeado de varios intereses románticos potenciales.',
+        context:
+          'Suele usarse en comedias románticas, fantasía o historias escolares para generar tensión afectiva, humor y competencia emocional.',
       },
       {
         term: 'Samurái',
-        triggers: ['samurai', 'shogun', 'edo period', 'feudal'],
+        triggers: ['samurai', 'samurái', 'shogun', 'edo period', 'feudal', 'historico'],
         meaning:
           'figura guerrera del Japón histórico asociada al servicio, la disciplina y el honor.',
         context:
@@ -693,11 +726,11 @@ export class AnimeService {
       },
       {
         term: 'Yōkai',
-        triggers: ['youkai', 'yokai', 'spirit', 'spirits', 'demon', 'demons'],
+        triggers: ['youkai', 'yokai', 'yōkai', 'spirit', 'spirits', 'demon', 'demons', 'espiritu', 'demonio'],
         meaning:
           'criaturas, espíritus o entidades sobrenaturales del folclore japonés.',
         context:
-          'Permiten conectar la historia con creencias populares, relatos tradicionales y mitología japonesa.',
+          'Permiten conectar la historia con creencias populares, relatos tradicionales, mitología japonesa y explicaciones fantásticas del mundo.',
       },
       {
         term: 'Matsuri',
@@ -705,35 +738,19 @@ export class AnimeService {
         meaning:
           'festival tradicional japonés, muchas veces asociado a templos, estaciones del año o celebraciones comunitarias.',
         context:
-          'En el anime suele aparecer como espacio de convivencia, comida típica, juegos, yukata y fortalecimiento de vínculos.',
+          'En el anime suele aparecer con comida típica, juegos, yukata, fuegos artificiales y escenas de convivencia social.',
       },
       {
         term: 'Otaku',
-        triggers: ['otaku culture', 'otaku', 'cosplay', 'doujin'],
+        triggers: ['otaku culture', 'otaku', 'cosplay', 'doujin', 'cultura otaku'],
         meaning:
           'persona con gran afición por anime, manga, videojuegos u otras formas de cultura popular japonesa.',
         context:
           'El término permite analizar comunidades fan, consumo cultural, identidad y circulación global del anime.',
       },
       {
-        term: 'Mahō shōjo',
-        triggers: ['mahou shoujo', 'magical girl'],
-        meaning:
-          'subgénero de chicas mágicas donde personajes jóvenes adquieren poderes especiales.',
-        context:
-          'Suele combinar transformación, amistad, responsabilidad, identidad y elementos de fantasía.',
-      },
-      {
-        term: 'Slice of Life',
-        triggers: ['slice of life'],
-        meaning:
-          'género centrado en experiencias cotidianas, relaciones simples y momentos de la vida diaria.',
-        context:
-          'Permite observar costumbres escolares, familiares, laborales o comunitarias desde una mirada tranquila y cercana.',
-      },
-      {
         term: 'Yakuza',
-        triggers: ['yakuza', 'organized crime'],
+        triggers: ['yakuza', 'organized crime', 'crimen organizado', 'mafia'],
         meaning:
           'organización criminal japonesa con códigos internos de jerarquía, lealtad y territorio.',
         context:
@@ -745,7 +762,7 @@ export class AnimeService {
       .filter((entry) =>
         entry.triggers.some((trigger) => searchableText.includes(trigger)),
       )
-      .slice(0, 4)
+      .slice(0, 6)
       .map(({ term, meaning, context }) => ({
         term,
         meaning,
@@ -782,14 +799,6 @@ export class AnimeService {
       .trim();
   }
 
-  private cleanCulturalText(text: string): string {
-    return text
-      .replace(/\s+/g, ' ')
-      .replace(/\[Written by.*?\]/gi, '')
-      .replace(/\(Source:.*?\)/gi, '')
-      .trim()
-      .slice(0, 420);
-  }
 
   private async withSpanishSynopsis(anime: AnimeDto): Promise<AnimeDto> {
     return {
