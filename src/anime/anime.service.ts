@@ -798,7 +798,7 @@ export class AnimeService {
       .replace(/\s+/g, ' ')
       .trim();
   }
-
+k
 
   private async withSpanishSynopsis(anime: AnimeDto): Promise<AnimeDto> {
     return {
