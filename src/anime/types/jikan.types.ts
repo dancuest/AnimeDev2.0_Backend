@@ -8,6 +8,13 @@ export interface JikanPagination {
   };
 }
 
+export interface JikanNamedResource {
+  mal_id: number;
+  name: string;
+  type?: string;
+  url?: string;
+}
+
 export interface JikanRelationEntry {
   mal_id: number;
   type: string;
@@ -46,16 +53,28 @@ export interface JikanAnime {
   rating?: string | null;
   year?: number | null;
   season?: string | null;
+  source?: string | null;
+  background?: string | null;
 
-  studios?: Array<{
-    mal_id: number;
-    name: string;
-  }>;
+  aired?: {
+    from?: string | null;
+    to?: string | null;
+    string?: string | null;
+  };
 
-  genres?: Array<{
-    mal_id: number;
-    name: string;
-  }>;
+  broadcast?: {
+    day?: string | null;
+    time?: string | null;
+    timezone?: string | null;
+    string?: string | null;
+  };
+
+  studios?: JikanNamedResource[];
+  producers?: JikanNamedResource[];
+  licensors?: JikanNamedResource[];
+  genres?: JikanNamedResource[];
+  themes?: JikanNamedResource[];
+  demographics?: JikanNamedResource[];
 
   trailer?: {
     url?: string | null;
