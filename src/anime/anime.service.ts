@@ -12,7 +12,11 @@ import { Cache } from 'cache-manager';
 import { lastValueFrom } from 'rxjs';
 
 import { AnimeMapper } from './anime.mapper';
-import { AnimeDetailDto } from './dto/anime-detail.dto';
+import {
+  AnimeDetailDto,
+  AnimeRelationType,
+  RelatedAnimeDto,
+} from './dto/anime-detail.dto';
 import { AnimeDto, GenreDto } from './dto/anime.dto';
 import {
   JikanAnime,
@@ -196,10 +200,8 @@ export class AnimeService {
     id: number,
     requestId?: string,
   ): Promise<{ data: AnimeDetailDto }> {
-    /**
-     * Nueva versión para no reutilizar cache vieja en inglés.
-     */
-    const cacheKey = `anime:detail:${id}:full:es:v21`;
+
+    const cacheKey = `anime:detail:${id}:full:es:v22`;
 
     const detail = await this.getCached(cacheKey, async () => {
       const response = await this.fetchDetail<JikanAnime>(
@@ -217,6 +219,7 @@ export class AnimeService {
           response.data,
         ),
         trailers: [],
+        relatedAnime: this.buildRelatedAnime(response.data),
       };
     });
 
@@ -500,6 +503,69 @@ export class AnimeService {
     }
 
     return notes.slice(0, 10);
+  }
+
+  private buildRelatedAnime(source: JikanAnime): RelatedAnimeDto[] {
+    const relations = source.relations ?? [];
+
+    return relations
+      .flatMap((relation) => {
+        const relationType = this.toAnimeRelationType(relation.relation);
+
+        if (!relationType) {
+          return [];
+        }
+
+        const relationLabel = this.translateAnimeRelationType(relationType);
+
+        return (relation.entry ?? [])
+          .filter((entry) => entry.type?.toLowerCase() === 'anime')
+          .map((entry) => ({
+            id: Number(entry.mal_id),
+            title: entry.name,
+            relationType,
+            relationLabel,
+            url: entry.url ?? '',
+            sourceType: entry.type ?? 'anime',
+          }));
+      })
+      .filter((entry) => Number.isFinite(entry.id) && entry.title.trim().length > 0)
+      .sort((left, right) => {
+        const order: Record<AnimeRelationType, number> = {
+          PREQUEL: 0,
+          SEQUEL: 1,
+        };
+
+        return order[left.relationType] - order[right.relationType];
+      })
+      .slice(0, 8);
+  }
+
+  private toAnimeRelationType(
+    relation?: string | null,
+  ): AnimeRelationType | null {
+    const normalized = relation?.toLowerCase().trim() ?? '';
+
+    if (normalized.includes('prequel')) {
+      return 'PREQUEL';
+    }
+
+    if (normalized.includes('sequel')) {
+      return 'SEQUEL';
+    }
+
+    return null;
+  }
+
+  private translateAnimeRelationType(
+    relationType: AnimeRelationType,
+  ): string {
+    const labels: Record<AnimeRelationType, string> = {
+      PREQUEL: 'Precuela',
+      SEQUEL: 'Secuela',
+    };
+
+    return labels[relationType];
   }
 
   private translateSeason(season?: string | null): string | null {
@@ -798,7 +864,7 @@ export class AnimeService {
       .replace(/\s+/g, ' ')
       .trim();
   }
-k
+  
 
   private async withSpanishSynopsis(anime: AnimeDto): Promise<AnimeDto> {
     return {
