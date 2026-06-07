@@ -89,8 +89,7 @@ export class AnimeService {
       this.configService.get<string>('translationEmail') || undefined;
 
     this.logger.log(
-      `AnimeService iniciado. translateSynopses=${this.translateSynopses}, translationEmail=${
-        this.translationEmail ? 'configurado' : 'no configurado'
+      `AnimeService iniciado. translateSynopses=${this.translateSynopses}, translationEmail=${this.translationEmail ? 'configurado' : 'no configurado'
       }`,
     );
   }
@@ -113,9 +112,8 @@ export class AnimeService {
   }
 
   async getTop(limit = 10, requestId?: string, includeAdult?: boolean) {
-    const cacheKey = `anime:top:${limit}:${
-      includeAdult === true ? 'all' : 'sfw'
-    }`;
+    const cacheKey = `anime:top:${limit}:${includeAdult === true ? 'all' : 'sfw'
+      }`;
 
     const data = await this.getCached(
       cacheKey,
@@ -145,9 +143,8 @@ export class AnimeService {
   ) {
     const normalizedQuery = query.trim().toLowerCase();
 
-    const cacheKey = `anime:search:${normalizedQuery}:${limit}:${
-      includeAdult === true ? 'all' : 'sfw'
-    }`;
+    const cacheKey = `anime:search:${normalizedQuery}:${limit}:${includeAdult === true ? 'all' : 'sfw'
+      }`;
 
     return this.getCached(
       cacheKey,
@@ -270,9 +267,8 @@ export class AnimeService {
     requestId?: string,
     includeAdult?: boolean,
   ): Promise<{ data: AnimeDto[]; meta: { limit: number } }> {
-    const cacheKey = `anime:genre:${genreId}:${limit}:${
-      includeAdult === true ? 'all' : 'sfw'
-    }`;
+    const cacheKey = `anime:genre:${genreId}:${limit}:${includeAdult === true ? 'all' : 'sfw'
+      }`;
 
     const data = await this.getCached(
       cacheKey,
@@ -428,36 +424,371 @@ export class AnimeService {
   private buildCulturalNotes(anime: AnimeDto, source: JikanAnime): string[] {
     const notes: string[] = [];
 
-    if (anime.releaseYear) {
-      notes.push(`Estrenado en ${anime.releaseYear}.`);
+    const seasonName = this.translateSeason(source.season);
+    const sourceName = this.translateAnimeSource(source.source);
+    const setting = this.detectCulturalSetting(anime, source);
+    const themeNames = this.getResourceNames(source.themes);
+    const demographicNames = this.getResourceNames(source.demographics);
+    const studioNames = this.getResourceNames(source.studios).slice(0, 2);
+    const producerNames = this.getResourceNames(source.producers).slice(0, 2);
+    const glossaryTerms = this.buildCulturalGlossary(anime, source);
+
+    if (seasonName && anime.releaseYear) {
+      notes.push(
+        `Temporada original: ${seasonName} de ${anime.releaseYear}. En Japón, muchas series de anime se estrenan por temporadas televisivas: invierno, primavera, verano y otoño. Este dato ayuda a ubicar la obra dentro del calendario real de emisión japonés.`,
+      );
+    } else if (anime.releaseYear) {
+      notes.push(
+        `Contexto de estreno: la obra fue estrenada en ${anime.releaseYear}. Este dato permite relacionarla con las tendencias narrativas, visuales y comerciales del anime de su época.`,
+      );
     }
 
-    if (source.season) {
-      notes.push(`Temporada original: ${source.season}.`);
+    if (source.aired?.string) {
+      notes.push(
+        `Periodo de emisión: ${source.aired.string}. Esta información muestra durante qué etapa fue transmitida originalmente la obra y ayuda a diferenciar animes de emisión semanal, temporadas cortas o producciones de larga duración.`,
+      );
     }
 
-    if (source.studios && source.studios.length > 0) {
-      const studioNames = source.studios
-        .slice(0, 2)
-        .map((studio) => studio.name)
-        .join(', ');
+    if (sourceName) {
+      notes.push(
+        `Origen de la obra: ${sourceName}. Conocer la fuente original permite entender si el anime adapta un manga, una novela ligera, un videojuego o si fue creado directamente como animación original.`,
+      );
+    }
 
-      notes.push(`Producción a cargo de ${studioNames}.`);
+    if (setting) {
+      notes.push(setting);
+    }
+
+    if (studioNames.length > 0) {
+      notes.push(
+        `Producción y estilo visual: ${studioNames.join(', ')} ${studioNames.length === 1 ? 'participó' : 'participaron'} en la animación. Identificar el estudio ayuda a reconocer estilos visuales, decisiones de dirección y formas de representar la cultura japonesa o mundos ficticios.`,
+      );
+    }
+
+    if (producerNames.length > 0) {
+      notes.push(
+        `Industria del anime: ${producerNames.join(', ')} ${producerNames.length === 1 ? 'figura' : 'figuran'} entre las entidades productoras. Esto muestra que el anime suele ser resultado de comités de producción donde participan empresas, editoriales, televisoras o distribuidoras.`,
+      );
     }
 
     if (anime.genres.length > 0) {
       const genreNames = anime.genres
-        .slice(0, 3)
+        .slice(0, 4)
         .map((genre) => genre.name)
         .join(', ');
 
-      notes.push(`Combina elementos de ${genreNames}.`);
+      notes.push(
+        `Lectura cultural de los géneros: esta obra combina elementos de ${genreNames}. Estos géneros no solo clasifican la historia, también orientan expectativas sobre valores narrativos como aventura, amistad, conflicto, superación, humor, romance o crítica social.`,
+      );
     }
 
-    notes.push('Ideal para explorar nuevas tendencias del anime.');
-    notes.push('Recomendado para fans que buscan historias memorables.');
+    if (themeNames.length > 0) {
+      notes.push(
+        `Temas narrativos relevantes: ${themeNames.slice(0, 4).join(', ')}. Estos temas ayudan a interpretar el contexto de la historia, sus conflictos principales y las referencias culturales que pueden aparecer durante la obra.`,
+      );
+    }
 
-    return notes.slice(0, 4);
+    if (demographicNames.length > 0) {
+      notes.push(
+        `Demografía editorial: ${demographicNames.slice(0, 3).join(', ')}. En el anime y el manga, etiquetas como shōnen, seinen, shōjo o josei no describen únicamente edad, sino también tradiciones editoriales, tono narrativo y tipo de conflictos frecuentes.`,
+      );
+    }
+
+    if (source.broadcast?.string) {
+      notes.push(
+        `Emisión japonesa: ${source.broadcast.string}. Este dato permite entender cómo fue programada originalmente la serie dentro de la televisión japonesa.`,
+      );
+    }
+
+    if (source.background) {
+      const cleanBackground = this.cleanCulturalText(source.background);
+
+      if (cleanBackground) {
+        notes.push(
+          `Dato de contexto: ${cleanBackground}`,
+        );
+      }
+    }
+
+    glossaryTerms.forEach((entry) => {
+      notes.push(
+        `Glosario cultural — ${entry.term}: ${entry.meaning} ${entry.context}`,
+      );
+    });
+
+    if (notes.length === 0) {
+      notes.push(
+        'Ficha cultural en construcción: por ahora no hay suficientes datos externos para generar un contexto cultural amplio de esta obra.',
+      );
+    }
+
+    return notes.slice(0, 10);
+  }
+
+  private translateSeason(season?: string | null): string | null {
+    if (!season) {
+      return null;
+    }
+
+    const normalized = season.toLowerCase();
+
+    const seasons: Record<string, string> = {
+      winter: 'Invierno',
+      spring: 'Primavera',
+      summer: 'Verano',
+      fall: 'Otoño',
+    };
+
+    return seasons[normalized] ?? season;
+  }
+
+  private translateAnimeSource(source?: string | null): string | null {
+    if (!source) {
+      return null;
+    }
+
+    const normalized = source.toLowerCase();
+
+    const sources: Record<string, string> = {
+      manga: 'Manga',
+      'web manga': 'Manga web',
+      novel: 'Novela',
+      'light novel': 'Novela ligera',
+      original: 'Obra original',
+      game: 'Videojuego',
+      'visual novel': 'Novela visual',
+      '4-koma manga': 'Manga yonkoma de cuatro viñetas',
+      book: 'Libro',
+      card: 'Juego de cartas',
+      music: 'Música',
+      other: 'Otra fuente',
+      unknown: 'Fuente no especificada',
+    };
+
+    return sources[normalized] ?? source;
+  }
+
+  private getResourceNames(
+    resources?: Array<{ name?: string | null }> | null,
+  ): string[] {
+    return (resources ?? [])
+      .map((resource) => resource.name?.trim())
+      .filter((name): name is string => Boolean(name));
+  }
+
+  private detectCulturalSetting(
+    anime: AnimeDto,
+    source: JikanAnime,
+  ): string | null {
+    const searchableText = this.buildSearchableCulturalText(anime, source);
+
+    const hasAny = (...terms: string[]) =>
+      terms.some((term) => searchableText.includes(term));
+
+    if (hasAny('samurai', 'historical', 'feudal', 'shogun', 'edo period')) {
+      return 'Ambientación histórica o feudal: la obra contiene elementos asociados a épocas antiguas, clanes, samuráis, guerras tradicionales o estructuras sociales propias del Japón histórico. Este contexto permite analizar valores como honor, jerarquía, deber y conflicto entre tradición y cambio.';
+    }
+
+    if (hasAny('space', 'sci fi', 'science fiction', 'mecha', 'cyberpunk', 'robot')) {
+      return 'Ambientación futurista o de ciencia ficción: la historia incorpora tecnología avanzada, robots, viajes espaciales o sociedades futuras. Este tipo de anime suele explorar temas como identidad, progreso, guerra, memoria, inteligencia artificial o desigualdad social.';
+    }
+
+    if (hasAny('school', 'club', 'student', 'academy', 'classroom')) {
+      return 'Contexto escolar japonés: la obra se relaciona con espacios escolares, clubes estudiantiles o dinámicas de aula. En el anime, la escuela suele representar amistad, disciplina, crecimiento personal, presión académica y construcción de identidad.';
+    }
+
+    if (hasAny('military', 'war', 'army', 'soldier', 'battlefield')) {
+      return 'Contexto militar o bélico: la obra incluye conflictos armados, jerarquías militares o escenarios de guerra. Este tipo de ambientación permite analizar poder, sacrificio, obediencia, trauma y consecuencias sociales del conflicto.';
+    }
+
+    if (hasAny('pirate', 'pirates', 'treasure', 'sea adventure')) {
+      return 'Ambientación de aventura pirata: la historia se vincula con viajes marítimos, búsqueda de tesoros, tripulaciones y libertad. Este contexto suele trabajar temas como compañerismo, exploración, sueños personales y resistencia frente a sistemas de poder.';
+    }
+
+    if (hasAny('isekai', 'reincarnation', 'another world', 'fantasy world')) {
+      return 'Ambientación fantástica o de mundo alternativo: la obra presenta viajes a otros mundos, reencarnación o universos con reglas distintas a la realidad cotidiana. Este recurso permite explorar segundas oportunidades, escape social, identidad y adaptación cultural.';
+    }
+
+    if (hasAny('workplace', 'office', 'company', 'job')) {
+      return 'Contexto laboral: la obra se relaciona con espacios de trabajo, empresas u oficios. Este tipo de anime puede mostrar aspectos de la cultura laboral japonesa, responsabilidades adultas, jerarquías profesionales y equilibrio entre vida personal y trabajo.';
+    }
+
+    if (hasAny('otaku culture', 'anime fan', 'manga fan', 'cosplay', 'doujin')) {
+      return 'Cultura otaku: la obra contiene referencias al consumo de anime, manga, videojuegos, cosplay o comunidades de fans. Este contexto ayuda a entender prácticas culturales contemporáneas de Japón y su expansión global.';
+    }
+
+    if (hasAny('organized crime', 'yakuza', 'mafia', 'gang')) {
+      return 'Contexto de crimen organizado: la historia incluye organizaciones criminales, mafias o estructuras de poder clandestinas. En obras japonesas, este tipo de contexto puede vincularse con representaciones de la yakuza, códigos de lealtad y violencia social.';
+    }
+
+    if (hasAny('time travel', 'past', 'future timeline')) {
+      return 'Ambientación con viajes temporales: la obra usa desplazamientos en el tiempo o líneas temporales alternativas. Este recurso permite comparar épocas, decisiones personales y consecuencias culturales o sociales de cambiar el pasado.';
+    }
+
+    return null;
+  }
+
+  private buildCulturalGlossary(
+    anime: AnimeDto,
+    source: JikanAnime,
+  ): Array<{ term: string; meaning: string; context: string }> {
+    const searchableText = this.buildSearchableCulturalText(anime, source);
+
+    const glossary = [
+      {
+        term: 'Shōnen',
+        triggers: ['shounen', 'shonen', 'shōnen'],
+        meaning:
+          'categoría editorial asociada tradicionalmente a público juvenil masculino.',
+        context:
+          'Suele trabajar superación, amistad, entrenamiento, aventura y crecimiento del protagonista.',
+      },
+      {
+        term: 'Seinen',
+        triggers: ['seinen'],
+        meaning:
+          'categoría editorial orientada generalmente a jóvenes adultos o público adulto.',
+        context:
+          'Suele incluir conflictos más psicológicos, políticos, sociales o moralmente complejos.',
+      },
+      {
+        term: 'Shōjo',
+        triggers: ['shoujo', 'shojo', 'shōjo'],
+        meaning:
+          'categoría editorial asociada tradicionalmente a público juvenil femenino.',
+        context:
+          'Suele centrarse en emociones, vínculos personales, romance, identidad y crecimiento interior.',
+      },
+      {
+        term: 'Josei',
+        triggers: ['josei'],
+        meaning:
+          'categoría editorial dirigida principalmente a mujeres adultas.',
+        context:
+          'Suele abordar relaciones, vida laboral, madurez emocional y conflictos cotidianos desde una mirada adulta.',
+      },
+      {
+        term: 'Isekai',
+        triggers: ['isekai', 'another world'],
+        meaning:
+          'subgénero donde el protagonista es transportado, invocado o reencarna en otro mundo.',
+        context:
+          'Culturalmente se relaciona con fantasías de escape, reinicio de vida y exploración de reglas sociales alternativas.',
+      },
+      {
+        term: 'Mecha',
+        triggers: ['mecha', 'robot', 'robots'],
+        meaning:
+          'subgénero centrado en robots gigantes, tecnología militar o máquinas pilotadas.',
+        context:
+          'Puede representar tensiones entre humanidad, guerra, tecnología y poder político.',
+      },
+      {
+        term: 'Samurái',
+        triggers: ['samurai', 'shogun', 'edo period', 'feudal'],
+        meaning:
+          'figura guerrera del Japón histórico asociada al servicio, la disciplina y el honor.',
+        context:
+          'En el anime suele usarse para explorar tradición, jerarquía, lealtad y conflictos entre deber personal y normas sociales.',
+      },
+      {
+        term: 'Yōkai',
+        triggers: ['youkai', 'yokai', 'spirit', 'spirits', 'demon', 'demons'],
+        meaning:
+          'criaturas, espíritus o entidades sobrenaturales del folclore japonés.',
+        context:
+          'Permiten conectar la historia con creencias populares, relatos tradicionales y mitología japonesa.',
+      },
+      {
+        term: 'Matsuri',
+        triggers: ['matsuri', 'festival', 'festivals'],
+        meaning:
+          'festival tradicional japonés, muchas veces asociado a templos, estaciones del año o celebraciones comunitarias.',
+        context:
+          'En el anime suele aparecer como espacio de convivencia, comida típica, juegos, yukata y fortalecimiento de vínculos.',
+      },
+      {
+        term: 'Otaku',
+        triggers: ['otaku culture', 'otaku', 'cosplay', 'doujin'],
+        meaning:
+          'persona con gran afición por anime, manga, videojuegos u otras formas de cultura popular japonesa.',
+        context:
+          'El término permite analizar comunidades fan, consumo cultural, identidad y circulación global del anime.',
+      },
+      {
+        term: 'Mahō shōjo',
+        triggers: ['mahou shoujo', 'magical girl'],
+        meaning:
+          'subgénero de chicas mágicas donde personajes jóvenes adquieren poderes especiales.',
+        context:
+          'Suele combinar transformación, amistad, responsabilidad, identidad y elementos de fantasía.',
+      },
+      {
+        term: 'Slice of Life',
+        triggers: ['slice of life'],
+        meaning:
+          'género centrado en experiencias cotidianas, relaciones simples y momentos de la vida diaria.',
+        context:
+          'Permite observar costumbres escolares, familiares, laborales o comunitarias desde una mirada tranquila y cercana.',
+      },
+      {
+        term: 'Yakuza',
+        triggers: ['yakuza', 'organized crime'],
+        meaning:
+          'organización criminal japonesa con códigos internos de jerarquía, lealtad y territorio.',
+        context:
+          'Cuando aparece en anime, suele representar poder clandestino, honor criminal, violencia y tensiones sociales.',
+      },
+    ];
+
+    return glossary
+      .filter((entry) =>
+        entry.triggers.some((trigger) => searchableText.includes(trigger)),
+      )
+      .slice(0, 4)
+      .map(({ term, meaning, context }) => ({
+        term,
+        meaning,
+        context,
+      }));
+  }
+
+  private buildSearchableCulturalText(
+    anime: AnimeDto,
+    source: JikanAnime,
+  ): string {
+    const values = [
+      anime.title,
+      anime.originalTitle,
+      anime.synopsis,
+      source.synopsis,
+      source.background,
+      source.source,
+      source.season,
+      ...anime.genres.map((genre) => genre.name),
+      ...this.getResourceNames(source.genres),
+      ...this.getResourceNames(source.themes),
+      ...this.getResourceNames(source.demographics),
+    ];
+
+    return values
+      .filter((value): value is string => Boolean(value))
+      .join(' ')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private cleanCulturalText(text: string): string {
+    return text
+      .replace(/\s+/g, ' ')
+      .replace(/\[Written by.*?\]/gi, '')
+      .replace(/\(Source:.*?\)/gi, '')
+      .trim()
+      .slice(0, 420);
   }
 
   private async withSpanishSynopsis(anime: AnimeDto): Promise<AnimeDto> {
@@ -537,8 +868,7 @@ export class AnimeService {
       }
 
       this.logger.warn(
-        `MyMemory devolvió una traducción no utilizable. animeId=${
-          animeId ?? 'unknown'
+        `MyMemory devolvió una traducción no utilizable. animeId=${animeId ?? 'unknown'
         } chunk=${chunkNumber}/${totalChunks}`,
       );
     } catch (error) {
@@ -557,8 +887,7 @@ export class AnimeService {
       }
 
       this.logger.warn(
-        `Google Translate devolvió una traducción no utilizable. animeId=${
-          animeId ?? 'unknown'
+        `Google Translate devolvió una traducción no utilizable. animeId=${animeId ?? 'unknown'
         } chunk=${chunkNumber}/${totalChunks}`,
       );
     } catch (error) {
@@ -608,7 +937,7 @@ export class AnimeService {
 
     throw new Error(
       response.data?.responseDetails ??
-        `MyMemory returned invalid response. status=${responseStatus}`,
+      `MyMemory returned invalid response. status=${responseStatus}`,
     );
   }
 
