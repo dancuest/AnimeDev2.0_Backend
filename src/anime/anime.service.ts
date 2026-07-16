@@ -66,6 +66,30 @@ export class AnimeService {
   private static readonly GOOGLE_TRANSLATE_URL =
     'https://translate.googleapis.com/translate_a/single';
 
+  /**
+   * Jikan permite 3 solicitudes por segundo y 60 por minuto.
+   * Se usa un margen de seguridad para evitar nuevas respuestas 429.
+   */
+  private static readonly JIKAN_MIN_INTERVAL_MS = 400;
+  private static readonly JIKAN_WINDOW_MS = 60_000;
+  private static readonly JIKAN_MAX_REQUESTS_PER_WINDOW = 60;
+  private static readonly JIKAN_MAX_ATTEMPTS = 3;
+  private static readonly JIKAN_TIMEOUT_MS = 15_000;
+
+  /**
+   * Cola global del servicio para serializar las llamadas a Jikan.
+   * AnimeService es singleton dentro de NestJS, por lo que protege todos
+   * los endpoints que consumen el proveedor externo.
+   */
+  private jikanQueue: Promise<void> = Promise.resolve();
+  private readonly jikanRequestTimestamps: number[] = [];
+
+  /**
+   * Evita que varias solicitudes simultáneas consulten el mismo recurso
+   * cuando todavía no se ha guardado en caché.
+   */
+  private readonly inFlightRequests = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
@@ -173,12 +197,19 @@ export class AnimeService {
     );
   }
 
-  async getById(id: number, requestId?: string): Promise<{ data: AnimeDto }> {
+  async getById(
+    id: number,
+    requestId?: string,
+    translateSynopsis = true,
+  ): Promise<{ data: AnimeDto }> {
     /**
-     * Versión nueva para evitar reutilizar caché vieja en inglés.
-     * Este endpoint lo usan recomendaciones/favoritos cuando se restaura por ID.
+     * Las tarjetas internas del recomendador y la restauración de favoritos
+     * pueden solicitar translateSynopsis=false para evitar traducciones masivas.
+     * El detalle completo mantiene la traducción al español.
      */
-    const cacheKey = `anime:${id}:es:v21`;
+    const cacheKey = translateSynopsis
+      ? `anime:${id}:es:v22`
+      : `anime:${id}:raw:v1`;
 
     const anime = await this.getCached(cacheKey, async () => {
       const response = await this.fetchDetail<JikanAnime>(
@@ -188,7 +219,9 @@ export class AnimeService {
 
       const mappedAnime = this.mapper.toAnimeDto(response.data);
 
-      return this.withSpanishSynopsis(mappedAnime);
+      return translateSynopsis
+        ? this.withSpanishSynopsis(mappedAnime)
+        : mappedAnime;
     });
 
     return {
@@ -332,37 +365,45 @@ export class AnimeService {
     params: Record<string, unknown>,
     requestId?: string,
   ): Promise<JikanListResponse<T>> {
-    try {
-      const response = await lastValueFrom(
-        this.httpService.get<JikanListResponse<T>>(
-          `${this.baseUrl}${endpoint}`,
-          {
-            params,
-          },
-        ),
-      );
+    return this.executeJikanRequest(
+      async () => {
+        const response = await lastValueFrom(
+          this.httpService.get<JikanListResponse<T>>(
+            `${this.baseUrl}${endpoint}`,
+            {
+              params,
+              timeout: AnimeService.JIKAN_TIMEOUT_MS,
+            },
+          ),
+        );
 
-      return response.data;
-    } catch (error) {
-      throw this.buildUpstreamError(error, requestId, endpoint);
-    }
+        return response.data;
+      },
+      requestId,
+      endpoint,
+    );
   }
 
   private async fetchDetail<T>(
     endpoint: string,
     requestId?: string,
   ): Promise<JikanDetailResponse<T>> {
-    try {
-      const response = await lastValueFrom(
-        this.httpService.get<JikanDetailResponse<T>>(
-          `${this.baseUrl}${endpoint}`,
-        ),
-      );
+    return this.executeJikanRequest(
+      async () => {
+        const response = await lastValueFrom(
+          this.httpService.get<JikanDetailResponse<T>>(
+            `${this.baseUrl}${endpoint}`,
+            {
+              timeout: AnimeService.JIKAN_TIMEOUT_MS,
+            },
+          ),
+        );
 
-      return response.data;
-    } catch (error) {
-      throw this.buildUpstreamError(error, requestId, endpoint);
-    }
+        return response.data;
+      },
+      requestId,
+      endpoint,
+    );
   }
 
   private async getCached<T>(
@@ -376,11 +417,167 @@ export class AnimeService {
       return cached;
     }
 
-    const fresh = await fetcher();
+    const existingRequest = this.inFlightRequests.get(key) as
+      | Promise<T>
+      | undefined;
 
-    await this.cacheManager.set(key, fresh, ttlMs);
+    if (existingRequest) {
+      return existingRequest;
+    }
 
-    return fresh;
+    const request = (async () => {
+      const fresh = await fetcher();
+      await this.cacheManager.set(key, fresh, ttlMs);
+      return fresh;
+    })();
+
+    this.inFlightRequests.set(key, request);
+
+    try {
+      return await request;
+    } finally {
+      if (this.inFlightRequests.get(key) === request) {
+        this.inFlightRequests.delete(key);
+      }
+    }
+  }
+
+  private enqueueJikanRequest<T>(request: () => Promise<T>): Promise<T> {
+    const task = this.jikanQueue.then(async () => {
+      await this.waitForJikanSlot();
+      return request();
+    });
+
+    /**
+     * La cola debe seguir avanzando aunque una solicitud individual falle.
+     */
+    this.jikanQueue = task.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return task;
+  }
+
+  private async waitForJikanSlot(): Promise<void> {
+    while (true) {
+      const now = Date.now();
+      const windowStart = now - AnimeService.JIKAN_WINDOW_MS;
+
+      while (
+        this.jikanRequestTimestamps.length > 0 &&
+        this.jikanRequestTimestamps[0] <= windowStart
+      ) {
+        this.jikanRequestTimestamps.shift();
+      }
+
+      const lastRequestAt =
+        this.jikanRequestTimestamps[
+          this.jikanRequestTimestamps.length - 1
+        ] ?? 0;
+
+      const perSecondWait = Math.max(
+        0,
+        lastRequestAt + AnimeService.JIKAN_MIN_INTERVAL_MS - now,
+      );
+
+      const perMinuteWait =
+        this.jikanRequestTimestamps.length >=
+        AnimeService.JIKAN_MAX_REQUESTS_PER_WINDOW
+          ? Math.max(
+              0,
+              this.jikanRequestTimestamps[0] +
+                AnimeService.JIKAN_WINDOW_MS -
+                now,
+            )
+          : 0;
+
+      const waitMs = Math.max(perSecondWait, perMinuteWait);
+
+      if (waitMs <= 0) {
+        this.jikanRequestTimestamps.push(Date.now());
+        return;
+      }
+
+      await this.sleep(waitMs);
+    }
+  }
+
+  private async executeJikanRequest<T>(
+    request: () => Promise<T>,
+    requestId: string | undefined,
+    endpoint: string,
+  ): Promise<T> {
+    let lastError: unknown;
+
+    for (
+      let attempt = 1;
+      attempt <= AnimeService.JIKAN_MAX_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        return await this.enqueueJikanRequest(request);
+      } catch (error) {
+        lastError = error;
+
+        const upstreamStatus = this.getUpstreamStatus(error);
+        const retryable =
+          upstreamStatus === undefined ||
+          upstreamStatus === HttpStatus.TOO_MANY_REQUESTS ||
+          upstreamStatus >= HttpStatus.INTERNAL_SERVER_ERROR;
+
+        if (!retryable || attempt === AnimeService.JIKAN_MAX_ATTEMPTS) {
+          break;
+        }
+
+        const retryDelayMs = this.getRetryDelayMs(error, attempt);
+
+        this.logger.warn(
+          `Jikan falló en ${endpoint}. status=${upstreamStatus ?? 'network'} ` +
+            `attempt=${attempt}/${AnimeService.JIKAN_MAX_ATTEMPTS}. ` +
+            `Reintentando en ${retryDelayMs}ms`,
+        );
+
+        await this.sleep(retryDelayMs);
+      }
+    }
+
+    throw this.buildUpstreamError(lastError, requestId, endpoint);
+  }
+
+  private getUpstreamStatus(error: unknown): number | undefined {
+    return (error as { response?: { status?: number } })?.response?.status;
+  }
+
+  private getRetryDelayMs(error: unknown, attempt: number): number {
+    const retryAfter = (
+      error as {
+        response?: {
+          headers?: Record<string, string | number | undefined>;
+        };
+      }
+    )?.response?.headers?.['retry-after'];
+
+    if (retryAfter !== undefined) {
+      const retryAfterValue = String(retryAfter).trim();
+      const seconds = Number(retryAfterValue);
+
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.max(1_000, Math.ceil(seconds * 1_000));
+      }
+
+      const retryDate = Date.parse(retryAfterValue);
+
+      if (!Number.isNaN(retryDate)) {
+        return Math.max(1_000, retryDate - Date.now());
+      }
+    }
+
+    return 1_000 * attempt;
+  }
+
+  private sleep(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
 
   private buildUpstreamError(
@@ -403,7 +600,9 @@ export class AnimeService {
     const upstreamStatus = axiosError.response?.status;
 
     const statusCode =
-      upstreamStatus && upstreamStatus >= 500
+      upstreamStatus === HttpStatus.TOO_MANY_REQUESTS ||
+      (upstreamStatus !== undefined &&
+        upstreamStatus >= HttpStatus.INTERNAL_SERVER_ERROR)
         ? HttpStatus.SERVICE_UNAVAILABLE
         : HttpStatus.BAD_GATEWAY;
 
@@ -417,6 +616,9 @@ export class AnimeService {
         error: {
           code: 'UPSTREAM_FAILURE',
           message: upstreamMessage ?? axiosError.message ?? fallbackMessage,
+          upstream: 'jikan',
+          upstreamStatus: upstreamStatus ?? null,
+          endpoint,
           requestId: requestId ?? null,
         },
       },

@@ -1,8 +1,16 @@
-import { Controller, Get, Param, ParseIntPipe, Query, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  Req,
+} from '@nestjs/common';
 import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -19,7 +27,7 @@ import {
 @ApiTags('anime')
 @Controller('anime')
 export class AnimeController {
-  constructor(private readonly animeService: AnimeService) { }
+  constructor(private readonly animeService: AnimeService) {}
 
   @Get('top')
   @ApiOperation({
@@ -123,11 +131,32 @@ export class AnimeController {
     example: 5114,
     description: 'Identificador del anime',
   })
+  @ApiQuery({
+    name: 'translate',
+    required: false,
+    type: Boolean,
+    example: false,
+    description:
+      'Indica si la sinopsis debe traducirse. Por defecto es verdadero.',
+  })
   @ApiOkResponse({
     type: AnimeSingleResponseDto,
     description: 'Retorna un único anime.',
   })
-  getById(@Param('id', ParseIntPipe) id: number, @Req() req: Request) {
-    return this.animeService.getById(id, req.requestId);
+  getById(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('translate') translate: string | undefined,
+    @Req() req: Request,
+  ) {
+    const normalizedTranslate = translate?.trim().toLowerCase();
+
+    const shouldTranslate =
+      normalizedTranslate !== 'false' && normalizedTranslate !== '0';
+
+    return this.animeService.getById(
+      id,
+      req.requestId,
+      shouldTranslate,
+    );
   }
 }
