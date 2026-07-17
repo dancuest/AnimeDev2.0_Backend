@@ -8,21 +8,32 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { Cache } from 'cache-manager';
 import { lastValueFrom } from 'rxjs';
 
+import { PrismaService } from '../../prisma/prisma.service';
+import { getStaticJikanGenres } from './anime-genre.catalog';
 import { AnimeMapper } from './anime.mapper';
 import {
   AnimeDetailDto,
   AnimeRelationType,
   RelatedAnimeDto,
 } from './dto/anime-detail.dto';
-import { AnimeDto, GenreDto } from './dto/anime.dto';
 import {
-  JikanAnime,
-  JikanDetailResponse,
-  JikanListResponse,
-} from './types/jikan.types';
+  AnimeDto,
+  DurationType,
+  EmissionStatus,
+  GenreDto,
+} from './dto/anime.dto';
+import {
+  AnimeProviderError,
+  AnimeProviderName,
+} from './providers/anime-provider.types';
+import { AniListProvider } from './providers/anilist.provider';
+import { JikanProvider } from './providers/jikan.provider';
+import { KitsuProvider } from './providers/kitsu.provider';
+import { JikanAnime } from './types/jikan.types';
 
 interface MyMemoryTranslationResponse {
   responseData?: {
@@ -41,65 +52,297 @@ type GoogleTranslateResponse = [
   string,
 ];
 
+type CacheSource = AnimeProviderName | 'fallback' | 'derived';
+
+interface PersistentCacheEntry<T> {
+  value: T;
+  updatedAt: Date;
+  source: string;
+}
+
+interface ProviderResolution<T> {
+  value: T;
+  source: CacheSource;
+}
+
+type ProviderCallbacks<T> = Record<AnimeProviderName, () => Promise<T>>;
+
 @Injectable()
 export class AnimeService {
   private readonly logger = new Logger(AnimeService.name);
 
-  private readonly baseUrl: string;
+  private get prismaCacheClient(): PrismaService & { animeApiCache: any } {
+    return this.prisma as PrismaService & { animeApiCache: any };
+  }
+
   private readonly cacheTtlMs: number;
   private readonly shortCacheTtlMs: number;
   private readonly translateSynopses: boolean;
   private readonly translationBaseUrl: string;
   private readonly translationEmail?: string;
+  private readonly providerOrder: AnimeProviderName[];
 
   private static readonly ADULT_GENRE_IDS = new Set(['9', '12', '49']);
+
+  private static readonly EMERGENCY_CATALOG: AnimeDto[] = [
+    {
+      id: 5114,
+      externalApiId: '5114',
+      title: 'Fullmetal Alchemist: Brotherhood',
+      originalTitle: 'Hagane no Renkinjutsushi: Fullmetal Alchemist',
+      synopsis:
+        'Dos hermanos alquimistas buscan recuperar sus cuerpos después de un experimento fallido, mientras descubren una conspiración que amenaza a toda su nación.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 64,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2009,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '2', name: 'Aventura' },
+        { id: '8', name: 'Drama' },
+        { id: '10', name: 'Fantasía' },
+      ],
+    },
+    {
+      id: 11061,
+      externalApiId: '11061',
+      title: 'Hunter x Hunter',
+      originalTitle: 'Hunter x Hunter (2011)',
+      synopsis:
+        'Un joven inicia un exigente viaje para convertirse en cazador y encontrar a su padre, formando amistades y enfrentando desafíos cada vez mayores.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 148,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2011,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '2', name: 'Aventura' },
+        { id: '10', name: 'Fantasía' },
+        { id: '27', name: 'Shōnen' },
+      ],
+    },
+    {
+      id: 9253,
+      externalApiId: '9253',
+      title: 'Steins;Gate',
+      originalTitle: 'Steins;Gate',
+      synopsis:
+        'Un grupo de amigos descubre accidentalmente una forma de alterar el pasado y debe afrontar las consecuencias de cambiar distintas líneas temporales.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 24,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2011,
+      genres: [
+        { id: '8', name: 'Drama' },
+        { id: '24', name: 'Ciencia ficción' },
+        { id: '41', name: 'Suspenso' },
+        { id: '78', name: 'Viajes en el tiempo' },
+      ],
+    },
+    {
+      id: 21,
+      externalApiId: '21',
+      title: 'One Piece',
+      originalTitle: 'One Piece',
+      synopsis:
+        'Un joven pirata reúne una tripulación para recorrer los mares, encontrar un tesoro legendario y alcanzar su sueño de convertirse en Rey de los Piratas.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: null,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.ON_AIR,
+      releaseYear: 1999,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '2', name: 'Aventura' },
+        { id: '10', name: 'Fantasía' },
+        { id: '27', name: 'Shōnen' },
+      ],
+    },
+    {
+      id: 1535,
+      externalApiId: '1535',
+      title: 'Death Note',
+      originalTitle: 'Death Note',
+      synopsis:
+        'Un estudiante encuentra un cuaderno sobrenatural capaz de matar y comienza una batalla intelectual contra el detective que intenta detenerlo.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 37,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2006,
+      genres: [
+        { id: '7', name: 'Misterio' },
+        { id: '37', name: 'Sobrenatural' },
+        { id: '40', name: 'Psicológico' },
+        { id: '41', name: 'Suspenso' },
+      ],
+    },
+    {
+      id: 16498,
+      externalApiId: '16498',
+      title: 'Attack on Titan',
+      originalTitle: 'Shingeki no Kyojin',
+      synopsis:
+        'La humanidad vive protegida por enormes murallas hasta que la aparición de gigantes desencadena una guerra por la supervivencia y la verdad.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 25,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2013,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '8', name: 'Drama' },
+        { id: '38', name: 'Militar' },
+        { id: '41', name: 'Suspenso' },
+      ],
+    },
+    {
+      id: 30276,
+      externalApiId: '30276',
+      title: 'One Punch Man',
+      originalTitle: 'One Punch Man',
+      synopsis:
+        'Un héroe capaz de derrotar a cualquier enemigo con un solo golpe busca un desafío que le permita recuperar la emoción de combatir.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 12,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2015,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '4', name: 'Comedia' },
+        { id: '24', name: 'Ciencia ficción' },
+        { id: '31', name: 'Superpoderes' },
+      ],
+    },
+    {
+      id: 38000,
+      externalApiId: '38000',
+      title: 'Demon Slayer',
+      originalTitle: 'Kimetsu no Yaiba',
+      synopsis:
+        'Un joven se convierte en cazador de demonios para proteger a su hermana y encontrar una forma de devolverle su humanidad.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 26,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2019,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '10', name: 'Fantasía' },
+        { id: '13', name: 'Histórico' },
+        { id: '27', name: 'Shōnen' },
+      ],
+    },
+    {
+      id: 52991,
+      externalApiId: '52991',
+      title: 'Frieren: Beyond Journey’s End',
+      originalTitle: 'Sousou no Frieren',
+      synopsis:
+        'Una elfa inmortal emprende un nuevo viaje para comprender mejor a las personas y el significado de los recuerdos que dejó su antigua aventura.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 28,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2023,
+      genres: [
+        { id: '2', name: 'Aventura' },
+        { id: '8', name: 'Drama' },
+        { id: '10', name: 'Fantasía' },
+      ],
+    },
+    {
+      id: 50265,
+      externalApiId: '50265',
+      title: 'SPY x FAMILY',
+      originalTitle: 'Spy x Family',
+      synopsis:
+        'Un espía forma una familia falsa para cumplir una misión sin saber que su esposa es asesina y su hija puede leer la mente.',
+      coverImageUrl: '',
+      mangaPlusUrl: '',
+      mangaUrl: null,
+      mangaTitle: null,
+      trailerUrl: null,
+      totalEpisodes: 12,
+      durationType: DurationType.MEDIUM,
+      emissionStatus: EmissionStatus.FINISHED,
+      releaseYear: 2022,
+      genres: [
+        { id: '1', name: 'Acción' },
+        { id: '4', name: 'Comedia' },
+        { id: '50', name: 'Elenco adulto' },
+      ],
+    },
+  ];
 
   /**
    * MyMemory limita q a 500 bytes UTF-8.
    * Se usa 380 para dejar margen operativo y evitar rechazos silenciosos.
    */
-  private static readonly TRANSLATION_CHUNK_MAX_BYTES = 380;
 
+  private static readonly TRANSLATION_CHUNK_MAX_BYTES = 380;
   private static readonly MYMEMORY_TIMEOUT_MS = 12_000;
   private static readonly GOOGLE_TRANSLATE_TIMEOUT_MS = 15_000;
-
   private static readonly GOOGLE_TRANSLATE_URL =
     'https://translate.googleapis.com/translate_a/single';
 
-  /**
-   * Jikan permite 3 solicitudes por segundo y 60 por minuto.
-   * Se usa un margen de seguridad para evitar nuevas respuestas 429.
-   */
-  private static readonly JIKAN_MIN_INTERVAL_MS = 400;
-  private static readonly JIKAN_WINDOW_MS = 60_000;
-  private static readonly JIKAN_MAX_REQUESTS_PER_WINDOW = 60;
-  private static readonly JIKAN_MAX_ATTEMPTS = 3;
-  private static readonly JIKAN_TIMEOUT_MS = 15_000;
+  private static readonly PERSISTENT_CACHE_MAX_STALE_MS =
+    90 * 24 * 60 * 60 * 1_000;
+  private static readonly PERSISTENT_FALLBACK_MEMORY_TTL_MS =
+    5 * 60 * 1_000;
 
-  /**
-   * Cola global del servicio para serializar las llamadas a Jikan.
-   * AnimeService es singleton dentro de NestJS, por lo que protege todos
-   * los endpoints que consumen el proveedor externo.
-   */
-  private jikanQueue: Promise<void> = Promise.resolve();
-  private readonly jikanRequestTimestamps: number[] = [];
-
-  /**
-   * Evita que varias solicitudes simultáneas consulten el mismo recurso
-   * cuando todavía no se ha guardado en caché.
-   */
   private readonly inFlightRequests = new Map<string, Promise<unknown>>();
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly mapper: AnimeMapper,
+    private readonly prisma: PrismaService,
+    private readonly aniListProvider: AniListProvider,
+    private readonly jikanProvider: JikanProvider,
+    private readonly kitsuProvider: KitsuProvider,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {
-    this.baseUrl =
-      this.configService.get<string>('jikanBaseUrl') ??
-      'https://api.jikan.moe/v4';
-
     this.cacheTtlMs =
       this.configService.get<number>('cacheTtlMs') ?? 600_000;
 
@@ -116,50 +359,85 @@ export class AnimeService {
     this.translationEmail =
       this.configService.get<string>('translationEmail') || undefined;
 
+    this.providerOrder = this.parseProviderOrder(
+      this.configService.get<string>('animeProviderOrder') ??
+        'anilist,jikan,kitsu',
+    );
+
     this.logger.log(
-      `AnimeService iniciado. translateSynopses=${this.translateSynopses}, translationEmail=${this.translationEmail ? 'configurado' : 'no configurado'
-      }`,
+      `AnimeService iniciado. providers=${this.providerOrder.join(' -> ')}, ` +
+        `translateSynopses=${this.translateSynopses}, ` +
+        `translationEmail=${
+          this.translationEmail ? 'configurado' : 'no configurado'
+        }`,
     );
   }
 
-  /**
-   * Si includeAdult !== true, se fuerza sfw=true hacia Jikan.
-   */
-  private withSfw(
-    params: Record<string, unknown>,
-    includeAdult?: boolean,
-  ): Record<string, unknown> {
-    if (includeAdult === true) {
-      return params;
-    }
-
-    return {
-      ...params,
-      sfw: true,
-    };
-  }
-
   async getTop(limit = 10, requestId?: string, includeAdult?: boolean) {
-    const cacheKey = `anime:top:${limit}:${includeAdult === true ? 'all' : 'sfw'
-      }`;
+    const safeLimit = this.clampLimit(limit, 50);
+    const cacheKey = `anime:top:multi:v1:${safeLimit}:${
+      includeAdult === true ? 'all' : 'sfw'
+    }`;
 
     const data = await this.getCached(
       cacheKey,
       async () => {
-        const response = await this.fetchList<JikanAnime>(
-          '/top/anime',
-          this.withSfw({ limit }, includeAdult),
+        const resolved = await this.resolveProviders(
+          'top',
+          {
+            anilist: async () => {
+              const response = await this.aniListProvider.getTop(
+                safeLimit,
+                includeAdult === true,
+              );
+              return response.data.map((anime) =>
+                this.mapper.toAnimeDto(anime),
+              );
+            },
+            jikan: async () => {
+              const response = await this.jikanProvider.getTop(
+                safeLimit,
+                includeAdult === true,
+              );
+              return response.data.map((anime) =>
+                this.mapper.toAnimeDto(anime),
+              );
+            },
+            kitsu: async () => {
+              const response = await this.kitsuProvider.getTop(
+                safeLimit,
+                includeAdult === true,
+              );
+              return response.data.map((anime) =>
+                this.mapper.toAnimeDto(anime),
+              );
+            },
+          },
           requestId,
+          (items) => items.length > 0,
         );
 
-        return response.data.map((anime) => this.mapper.toAnimeDto(anime));
+        await this.rememberAnimeSnapshots(resolved.value, resolved.source);
+        return resolved;
       },
       this.shortCacheTtlMs,
+      async () => {
+        const stored = await this.getStoredAnimeSnapshots(safeLimit);
+        const items =
+          stored.length > 0
+            ? stored
+            : this.getEmergencyCatalog().slice(0, safeLimit);
+
+        await this.rememberAnimeSnapshots(items, 'fallback');
+        return items;
+      },
     );
 
     return {
       data,
-      meta: { limit },
+      meta: {
+        limit: safeLimit,
+      },
     };
   }
 
@@ -170,30 +448,114 @@ export class AnimeService {
     includeAdult?: boolean,
   ) {
     const normalizedQuery = query.trim().toLowerCase();
+    const safeLimit = this.clampLimit(limit, 50);
 
-    const cacheKey = `anime:search:${normalizedQuery}:${limit}:${includeAdult === true ? 'all' : 'sfw'
-      }`;
+    const cacheKey = `anime:search:multi:v1:${normalizedQuery}:${safeLimit}:${
+      includeAdult === true ? 'all' : 'sfw'
+    }`;
 
     return this.getCached(
       cacheKey,
       async () => {
-        const response = await this.fetchList<JikanAnime>(
-          '/anime',
-          this.withSfw({ q: query, limit }, includeAdult),
+        const resolved = await this.resolveProviders(
+          `search:${normalizedQuery}`,
+          {
+            anilist: async () => {
+              const response = await this.aniListProvider.search(
+                query,
+                safeLimit,
+                includeAdult === true,
+              );
+
+              return {
+                data: response.data.map((anime) =>
+                  this.mapper.toAnimeDto(anime),
+                ),
+                meta: {
+                  limit: safeLimit,
+                  total: response.total,
+                  count: response.count,
+                  hasNextPage: response.hasNextPage,
+                },
+              };
+            },
+            jikan: async () => {
+              const response = await this.jikanProvider.search(
+                query,
+                safeLimit,
+                includeAdult === true,
+              );
+
+              return {
+                data: response.data.map((anime) =>
+                  this.mapper.toAnimeDto(anime),
+                ),
+                meta: {
+                  limit: safeLimit,
+                  total: response.total,
+                  count: response.count,
+                  hasNextPage: response.hasNextPage,
+                },
+              };
+            },
+            kitsu: async () => {
+              const response = await this.kitsuProvider.search(
+                query,
+                safeLimit,
+                includeAdult === true,
+              );
+
+              return {
+                data: response.data.map((anime) =>
+                  this.mapper.toAnimeDto(anime),
+                ),
+                meta: {
+                  limit: safeLimit,
+                  total: response.total,
+                  count: response.count,
+                  hasNextPage: response.hasNextPage,
+                },
+              };
+            },
+          },
           requestId,
+          () => true,
         );
 
+        await this.rememberAnimeSnapshots(
+          resolved.value.data,
+          resolved.source,
+        );
+
+        return resolved;
+      },
+      this.shortCacheTtlMs,
+      async () => {
+        const items = await this.searchStoredAnime(query, safeLimit);
+        const emergencyItems = this.getEmergencyCatalog()
+          .filter((anime) => {
+            const searchable = this.normalizeText(
+              `${anime.title} ${anime.originalTitle ?? ''} ${
+                anime.synopsis
+              }`,
+            );
+
+            return searchable.includes(this.normalizeText(query));
+          })
+          .slice(0, safeLimit);
+
+        const data = items.length > 0 ? items : emergencyItems;
+
         return {
-          data: response.data.map((anime) => this.mapper.toAnimeDto(anime)),
+          data,
           meta: {
-            limit,
-            total: response.pagination?.items?.total ?? response.data.length,
-            count: response.pagination?.items?.count ?? response.data.length,
-            hasNextPage: response.pagination?.has_next_page ?? false,
+            limit: safeLimit,
+            total: data.length,
+            count: data.length,
+            hasNextPage: false,
           },
         };
       },
-      this.shortCacheTtlMs,
     );
   }
 
@@ -202,96 +564,152 @@ export class AnimeService {
     requestId?: string,
     translateSynopsis = true,
   ): Promise<{ data: AnimeDto }> {
-    /**
-     * Las tarjetas internas del recomendador y la restauración de favoritos
-     * pueden solicitar translateSynopsis=false para evitar traducciones masivas.
-     * El detalle completo mantiene la traducción al español.
-     */
-    const cacheKey = translateSynopsis
-      ? `anime:${id}:es:v22`
-      : `anime:${id}:raw:v1`;
+    const rawCacheKey = `anime:${id}:raw:multi:v1`;
 
-    const anime = await this.getCached(cacheKey, async () => {
-      const response = await this.fetchDetail<JikanAnime>(
-        `/anime/${id}`,
-        requestId,
-      );
+    const rawAnime = await this.getCached(
+      rawCacheKey,
+      async () => {
+        const resolved = await this.resolveProviders(
+          `anime:${id}`,
+          {
+            anilist: async () =>
+              this.mapper.toAnimeDto(
+                await this.aniListProvider.getByMalId(id),
+              ),
+            jikan: async () =>
+              this.mapper.toAnimeDto(
+                await this.jikanProvider.getByMalId(id),
+              ),
+            kitsu: async () =>
+              this.mapper.toAnimeDto(
+                await this.kitsuProvider.getByMalId(id),
+              ),
+          },
+          requestId,
+          (anime) => anime.id === id,
+        );
 
-      const mappedAnime = this.mapper.toAnimeDto(response.data);
+        await this.rememberAnimeSnapshots(
+          [resolved.value],
+          resolved.source,
+        );
 
-      return translateSynopsis
-        ? this.withSpanishSynopsis(mappedAnime)
-        : mappedAnime;
-    });
+        return resolved;
+      },
+      this.cacheTtlMs,
+      async () => {
+        const storedAnime = await this.findStoredAnimeById(id);
+        const emergencyAnime = this.getEmergencyCatalog().find(
+          (anime) => anime.id === id,
+        );
 
-    return {
-      data: anime,
-    };
+        return storedAnime ?? emergencyAnime ?? null;
+      },
+    );
+
+    if (!translateSynopsis) {
+      return { data: rawAnime };
+    }
+
+    const translatedCacheKey = `anime:${id}:es:multi:v1`;
+
+    const translatedAnime = await this.getCached(
+      translatedCacheKey,
+      async () => ({
+        value: await this.withSpanishSynopsis(rawAnime),
+        source: 'derived',
+      }),
+      this.cacheTtlMs,
+      () => rawAnime,
+    );
+
+    return { data: translatedAnime };
   }
 
   async getDetail(
     id: number,
     requestId?: string,
   ): Promise<{ data: AnimeDetailDto }> {
+    const cacheKey = `anime:detail:${id}:full:multi:es:v1`;
 
-    const cacheKey = `anime:detail:${id}:full:es:v22`;
+    const detail = await this.getCached(
+      cacheKey,
+      async () => {
+        const resolved = await this.resolveProviders(
+          `detail:${id}`,
+          {
+            anilist: async () =>
+              this.aniListProvider.getFullByMalId(id),
+            jikan: async () =>
+              this.jikanProvider.getFullByMalId(id),
+            kitsu: async () =>
+              this.kitsuProvider.getFullByMalId(id),
+          },
+          requestId,
+          (anime) => anime.mal_id === id,
+        );
 
-    const detail = await this.getCached(cacheKey, async () => {
-      const response = await this.fetchDetail<JikanAnime>(
-        `/anime/${id}/full`,
-        requestId,
-      );
+        const anime = this.mapper.toAnimeDto(resolved.value);
 
-      const anime = this.mapper.toAnimeDto(response.data);
-      const animeWithSpanishSynopsis = await this.withSpanishSynopsis(anime);
+        await this.rememberAnimeSnapshots([anime], resolved.source);
 
-      return {
-        anime: animeWithSpanishSynopsis,
-        culturalNotes: this.buildCulturalNotes(
-          animeWithSpanishSynopsis,
-          response.data,
-        ),
-        trailers: [],
-        relatedAnime: this.buildRelatedAnime(response.data),
-      };
-    });
+        const animeWithSpanishSynopsis = await this.withSpanishSynopsis(anime);
+
+        return {
+          value: {
+            anime: animeWithSpanishSynopsis,
+            culturalNotes: this.buildCulturalNotes(
+              animeWithSpanishSynopsis,
+              resolved.value,
+            ),
+            trailers: [],
+            relatedAnime: this.buildRelatedAnime(resolved.value),
+          },
+          source: resolved.source,
+        };
+      },
+      this.cacheTtlMs,
+      async () => {
+        const anime = (await this.getById(id, requestId, true)).data;
+
+        return {
+          anime,
+          culturalNotes: this.buildFallbackCulturalNotes(anime),
+          trailers: [],
+          relatedAnime: [],
+        };
+      },
+    );
 
     return { data: detail };
   }
 
   async getHero(requestId?: string): Promise<{ data: AnimeDto }> {
-    const cacheKey = 'anime:hero:es:v21';
+    const cacheKey = 'anime:hero:multi:es:v1';
 
     const anime = await this.getCached(
       cacheKey,
       async () => {
-        const response = await this.fetchList<JikanAnime>(
-          '/top/anime',
-          this.withSfw({ limit: 10 }, false),
-          requestId,
-        );
-
-        const items = response.data.map((item) =>
-          this.mapper.toAnimeDto(item),
-        );
+        const top = await this.getTop(12, requestId, false);
+        const items = top.data;
 
         if (items.length === 0) {
-          throw new HttpException(
-            {
-              statusCode: HttpStatus.SERVICE_UNAVAILABLE,
-              message: 'No hero anime available from upstream provider',
-              upstream: 'jikan',
-              requestId: requestId ?? null,
-            },
-            HttpStatus.SERVICE_UNAVAILABLE,
-          );
+          return {
+            value: this.getEmergencyCatalog()[0],
+            source: 'fallback',
+          };
         }
 
-        const selectedAnime = items[Math.floor(Math.random() * items.length)];
+        const selectedAnime =
+          items[Math.floor(Math.random() * items.length)];
 
-        return this.withSpanishSynopsis(selectedAnime);
+        return {
+          value: await this.withSpanishSynopsis(selectedAnime),
+          source: 'derived',
+        };
       },
       this.shortCacheTtlMs,
+      () => this.getEmergencyCatalog()[0],
     );
 
     return { data: anime };
@@ -303,118 +721,389 @@ export class AnimeService {
     requestId?: string,
     includeAdult?: boolean,
   ): Promise<{ data: AnimeDto[]; meta: { limit: number } }> {
-    const cacheKey = `anime:genre:${genreId}:${limit}:${includeAdult === true ? 'all' : 'sfw'
-      }`;
+    const safeLimit = this.clampLimit(limit, 50);
+    const cacheKey = `anime:genre:multi:v1:${genreId}:${safeLimit}:${
+      includeAdult === true ? 'all' : 'sfw'
+    }`;
 
     const data = await this.getCached(
       cacheKey,
       async () => {
-        const response = await this.fetchList<JikanAnime>(
-          '/anime',
-          this.withSfw({ genres: genreId, limit }, includeAdult),
+        const resolved = await this.resolveProviders(
+          `genre:${genreId}`,
+          {
+            anilist: async () => {
+              const response = await this.aniListProvider.getByGenre(
+                genreId,
+                safeLimit,
+                includeAdult === true,
+              );
+
+              return response.data.map((anime) =>
+                this.mapper.toAnimeDto(anime),
+              );
+            },
+            jikan: async () => {
+              const response = await this.jikanProvider.getByGenre(
+                genreId,
+                safeLimit,
+                includeAdult === true,
+              );
+
+              return response.data.map((anime) =>
+                this.mapper.toAnimeDto(anime),
+              );
+            },
+            kitsu: async () => {
+              const response = await this.kitsuProvider.getByGenre(
+                genreId,
+                safeLimit,
+                includeAdult === true,
+              );
+
+              return response.data.map((anime) =>
+                this.mapper.toAnimeDto(anime),
+              );
+            },
+          },
           requestId,
+          (items) => items.length > 0,
         );
 
-        return response.data.map((anime) => this.mapper.toAnimeDto(anime));
+        await this.rememberAnimeSnapshots(resolved.value, resolved.source);
+        return resolved;
       },
       this.shortCacheTtlMs,
+      async () => {
+        const stored = await this.getStoredAnimeSnapshots(300);
+        const matched = stored.filter((anime) =>
+          anime.genres.some((genre) => genre.id === genreId),
+        );
+
+        const emergency = this.getEmergencyCatalog().filter((anime) =>
+          anime.genres.some((genre) => genre.id === genreId),
+        );
+
+        const data =
+          matched.length > 0
+            ? matched
+            : emergency.length > 0
+              ? emergency
+              : stored.length > 0
+                ? stored
+                : this.getEmergencyCatalog();
+
+        return data.slice(0, safeLimit);
+      },
     );
 
     return {
       data,
-      meta: { limit },
+      meta: { limit: safeLimit },
     };
   }
 
   async getGenres(
     includeAdult = true,
-    requestId?: string,
+    _requestId?: string,
   ): Promise<{ data: GenreDto[] }> {
-    const cacheKey = `anime:genres:${includeAdult ? 'all' : 'safe'}`;
+    const cacheKey = `anime:genres:static:v2:${
+      includeAdult ? 'all' : 'safe'
+    }`;
 
     const genres = await this.getCached(
       cacheKey,
       async () => {
-        const response = await this.fetchList<{
-          mal_id: number;
-          name: string;
-        }>('/genres/anime', {}, requestId);
-
-        const mappedGenres = response.data.map((genre) =>
+        const mappedGenres = getStaticJikanGenres().map((genre) =>
           this.mapper.toGenreDto(genre),
         );
 
-        if (includeAdult) {
-          return mappedGenres;
+        return {
+          value: includeAdult
+            ? mappedGenres
+            : mappedGenres.filter(
+                (genre) =>
+                  !AnimeService.ADULT_GENRE_IDS.has(genre.id),
+              ),
+          source: 'derived',
+        };
+      },
+      this.cacheTtlMs,
+    );
+
+    return { data: genres };
+  }
+
+  async getManyByIds(
+    animeIds: number[],
+    requestId?: string,
+    translateSynopsis = false,
+  ): Promise<AnimeDto[]> {
+    const orderedIds = Array.from(
+      new Set(
+        animeIds.filter(
+          (id) => Number.isInteger(id) && id > 0,
+        ),
+      ),
+    ).slice(0, 20);
+
+    if (orderedIds.length === 0) {
+      return [];
+    }
+
+    const resolved = new Map<number, AnimeDto>();
+
+    const cached = await this.getCachedAnimesByIds(orderedIds);
+
+    for (const anime of cached) {
+      resolved.set(anime.id, anime);
+    }
+
+    let missing = orderedIds.filter((id) => !resolved.has(id));
+
+    if (missing.length > 0) {
+      try {
+        const anilistItems =
+          await this.aniListProvider.getManyByMalIds(missing);
+
+        const mappedItems = anilistItems.map((anime) =>
+          this.mapper.toAnimeDto(anime),
+        );
+
+        await this.rememberAnimeSnapshots(mappedItems, 'anilist');
+
+        for (const anime of mappedItems) {
+          resolved.set(anime.id, anime);
+        }
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo completar el lote con AniList: ${this.getErrorMessage(
+            error,
+          )}`,
+        );
+      }
+    }
+
+    missing = orderedIds.filter((id) => !resolved.has(id));
+
+    for (const animeId of missing.slice(0, 5)) {
+      try {
+        const item = await this.resolveProviders(
+          `batch-item:${animeId}`,
+          {
+            anilist: async () =>
+              this.mapper.toAnimeDto(
+                await this.aniListProvider.getByMalId(animeId),
+              ),
+            jikan: async () =>
+              this.mapper.toAnimeDto(
+                await this.jikanProvider.getByMalId(animeId),
+              ),
+            kitsu: async () =>
+              this.mapper.toAnimeDto(
+                await this.kitsuProvider.getByMalId(animeId),
+              ),
+          },
+          requestId,
+          (anime) => anime.id === animeId,
+        );
+
+        resolved.set(animeId, item.value);
+        await this.rememberAnimeSnapshots(
+          [item.value],
+          item.source,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo completar animeId=${animeId}: ${this.getErrorMessage(
+            error,
+          )}`,
+        );
+      }
+    }
+
+    const ordered = orderedIds
+      .map((id) => resolved.get(id))
+      .filter((anime): anime is AnimeDto => Boolean(anime));
+
+    if (!translateSynopsis) {
+      return ordered;
+    }
+
+    const translated: AnimeDto[] = [];
+
+    for (const anime of ordered) {
+      translated.push(await this.withSpanishSynopsis(anime));
+    }
+
+    return translated;
+  }
+
+  async getCachedAnimesByIds(animeIds: number[]): Promise<AnimeDto[]> {
+    const orderedIds = Array.from(new Set(animeIds));
+
+    if (orderedIds.length === 0) {
+      return [];
+    }
+
+    const resolved = new Map<number, AnimeDto>();
+
+    for (const animeId of orderedIds) {
+      const memory = await this.cacheManager.get<AnimeDto>(
+        `anime:${animeId}:raw:multi:v1`,
+      );
+
+      if (memory) {
+        resolved.set(animeId, memory);
+        continue;
+      }
+
+      const persistent = await this.readPersistentCache<AnimeDto>(
+        `anime:${animeId}:raw:multi:v1`,
+      );
+
+      if (persistent?.value) {
+        resolved.set(animeId, persistent.value);
+        await this.cacheManager.set(
+          `anime:${animeId}:raw:multi:v1`,
+          persistent.value,
+          this.cacheTtlMs,
+        );
+      }
+    }
+
+    return orderedIds
+      .map((id) => resolved.get(id))
+      .filter((anime): anime is AnimeDto => Boolean(anime));
+  }
+
+  private async resolveProviders<T>(
+    operation: string,
+    callbacks: ProviderCallbacks<T>,
+    requestId: string | undefined,
+    isUsable: (value: T) => boolean,
+  ): Promise<ProviderResolution<T>> {
+    const failures: Array<{
+      provider: AnimeProviderName;
+      status: number | null;
+      message: string;
+    }> = [];
+
+    for (const provider of this.providerOrder) {
+      try {
+        const value = await callbacks[provider]();
+
+        if (!isUsable(value)) {
+          throw new AnimeProviderError(
+            provider,
+            operation,
+            HttpStatus.BAD_GATEWAY,
+            `${provider} devolvió una respuesta vacía o incompatible.`,
+          );
         }
 
-        return mappedGenres.filter(
-          (genre) => !AnimeService.ADULT_GENRE_IDS.has(genre.id),
+        this.logger.log(
+          `Proveedor ${provider} respondió correctamente en ${operation}.`,
         );
-      },
-      this.shortCacheTtlMs,
-    );
 
-    return {
-      data: genres,
-    };
+        return {
+          value,
+          source: provider,
+        };
+      } catch (error) {
+        const providerError = this.toProviderError(
+          provider,
+          operation,
+          error,
+        );
+
+        failures.push({
+          provider,
+          status: providerError.upstreamStatus,
+          message: providerError.message,
+        });
+
+        this.logger.warn(
+          `Proveedor ${provider} falló en ${operation}: ` +
+            `${providerError.message} ` +
+            `(status=${providerError.upstreamStatus ?? 'network'})`,
+        );
+      }
+    }
+
+    throw new HttpException(
+      {
+        error: {
+          code: 'ALL_ANIME_PROVIDERS_FAILED',
+          message:
+            'AniList, Jikan y Kitsu no pudieron responder. Se intentará utilizar la información almacenada.',
+          operation,
+          providers: failures,
+          requestId: requestId ?? null,
+        },
+      },
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
   }
 
-  private async fetchList<T>(
-    endpoint: string,
-    params: Record<string, unknown>,
-    requestId?: string,
-  ): Promise<JikanListResponse<T>> {
-    return this.executeJikanRequest(
-      async () => {
-        const response = await lastValueFrom(
-          this.httpService.get<JikanListResponse<T>>(
-            `${this.baseUrl}${endpoint}`,
-            {
-              params,
-              timeout: AnimeService.JIKAN_TIMEOUT_MS,
-            },
-          ),
-        );
+  private toProviderError(
+    provider: AnimeProviderName,
+    operation: string,
+    error: unknown,
+  ): AnimeProviderError {
+    if (error instanceof AnimeProviderError) {
+      return error;
+    }
 
-        return response.data;
-      },
-      requestId,
-      endpoint,
+    const status = (error as { response?: { status?: number } })?.response
+      ?.status;
+
+    return new AnimeProviderError(
+      provider,
+      operation,
+      typeof status === 'number' ? status : null,
+      this.getErrorMessage(error),
     );
   }
 
-  private async fetchDetail<T>(
-    endpoint: string,
-    requestId?: string,
-  ): Promise<JikanDetailResponse<T>> {
-    return this.executeJikanRequest(
-      async () => {
-        const response = await lastValueFrom(
-          this.httpService.get<JikanDetailResponse<T>>(
-            `${this.baseUrl}${endpoint}`,
-            {
-              timeout: AnimeService.JIKAN_TIMEOUT_MS,
-            },
-          ),
-        );
+  private parseProviderOrder(value: string): AnimeProviderName[] {
+    const valid = new Set<AnimeProviderName>([
+      'anilist',
+      'jikan',
+      'kitsu',
+    ]);
 
-        return response.data;
-      },
-      requestId,
-      endpoint,
-    );
+    const parsed = value
+      .split(',')
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(
+        (entry): entry is AnimeProviderName =>
+          valid.has(entry as AnimeProviderName),
+      );
+
+    const unique = Array.from(new Set(parsed));
+
+    for (const provider of valid) {
+      if (!unique.includes(provider)) {
+        unique.push(provider);
+      }
+    }
+
+    return unique;
   }
 
   private async getCached<T>(
     key: string,
-    fetcher: () => Promise<T>,
+    fetcher: () => Promise<ProviderResolution<T>>,
     ttlMs = this.cacheTtlMs,
+    fallback?: (
+      error: unknown,
+    ) => Promise<T | null | undefined> | T | null | undefined,
   ): Promise<T> {
-    const cached = await this.cacheManager.get<T>(key);
+    const memoryCached = await this.cacheManager.get<T>(key);
 
-    if (cached !== undefined && cached !== null) {
-      return cached;
+    if (memoryCached !== undefined && memoryCached !== null) {
+      return memoryCached;
     }
 
     const existingRequest = this.inFlightRequests.get(key) as
@@ -426,9 +1115,74 @@ export class AnimeService {
     }
 
     const request = (async () => {
-      const fresh = await fetcher();
-      await this.cacheManager.set(key, fresh, ttlMs);
-      return fresh;
+      const persistent = await this.readPersistentCache<T>(key);
+      const persistentAgeMs = persistent
+        ? Date.now() - persistent.updatedAt.getTime()
+        : Number.POSITIVE_INFINITY;
+
+      if (persistent && persistentAgeMs <= ttlMs) {
+        await this.cacheManager.set(key, persistent.value, ttlMs);
+        return persistent.value;
+      }
+
+      try {
+        const fresh = await fetcher();
+
+        await Promise.all([
+          this.cacheManager.set(key, fresh.value, ttlMs),
+          this.writePersistentCache(
+            key,
+            fresh.value,
+            fresh.source,
+          ),
+        ]);
+
+        return fresh.value;
+      } catch (error) {
+        if (
+          persistent &&
+          persistentAgeMs <=
+            AnimeService.PERSISTENT_CACHE_MAX_STALE_MS
+        ) {
+          this.logger.warn(
+            `Se usa caché persistente para ${key}, antigüedad=${Math.round(
+              persistentAgeMs / 1_000,
+            )}s, source=${persistent.source}.`,
+          );
+
+          await this.cacheManager.set(
+            key,
+            persistent.value,
+            AnimeService.PERSISTENT_FALLBACK_MEMORY_TTL_MS,
+          );
+
+          return persistent.value;
+        }
+
+        const fallbackValue = fallback ? await fallback(error) : null;
+
+        if (
+          fallbackValue !== undefined &&
+          fallbackValue !== null
+        ) {
+          await Promise.all([
+            this.cacheManager.set(
+              key,
+              fallbackValue,
+              AnimeService.PERSISTENT_FALLBACK_MEMORY_TTL_MS,
+            ),
+            this.writePersistentCache(
+              key,
+              fallbackValue,
+              'fallback',
+            ),
+          ]);
+
+          return fallbackValue;
+        }
+
+        throw error;
+      }
     })();
 
     this.inFlightRequests.set(key, request);
@@ -442,188 +1196,242 @@ export class AnimeService {
     }
   }
 
-  private enqueueJikanRequest<T>(request: () => Promise<T>): Promise<T> {
-    const task = this.jikanQueue.then(async () => {
-      await this.waitForJikanSlot();
-      return request();
-    });
+  private async readPersistentCache<T>(
+    key: string,
+  ): Promise<PersistentCacheEntry<T> | null> {
+    try {
+      const row = await this.prismaCacheClient.animeApiCache.findUnique({
+        where: { key },
+      });
 
-    /**
-     * La cola debe seguir avanzando aunque una solicitud individual falle.
-     */
-    this.jikanQueue = task.then(
-      () => undefined,
-      () => undefined,
-    );
-
-    return task;
-  }
-
-  private async waitForJikanSlot(): Promise<void> {
-    while (true) {
-      const now = Date.now();
-      const windowStart = now - AnimeService.JIKAN_WINDOW_MS;
-
-      while (
-        this.jikanRequestTimestamps.length > 0 &&
-        this.jikanRequestTimestamps[0] <= windowStart
-      ) {
-        this.jikanRequestTimestamps.shift();
+      if (!row) {
+        return null;
       }
 
-      const lastRequestAt =
-        this.jikanRequestTimestamps[
-          this.jikanRequestTimestamps.length - 1
-        ] ?? 0;
+      return {
+        value: row.payload as unknown as T,
+        updatedAt: row.updatedAt,
+        source: row.source,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo leer la caché persistente key=${key}: ${this.getErrorMessage(
+          error,
+        )}`,
+      );
+      return null;
+    }
+  }
 
-      const perSecondWait = Math.max(
-        0,
-        lastRequestAt + AnimeService.JIKAN_MIN_INTERVAL_MS - now,
+  private async writePersistentCache<T>(
+    key: string,
+    value: T,
+    source: CacheSource,
+  ): Promise<void> {
+    try {
+      await this.prismaCacheClient.animeApiCache.upsert({
+        where: { key },
+        create: {
+          key,
+          payload: value as unknown as Prisma.InputJsonValue,
+          source,
+        },
+        update: {
+          payload: value as unknown as Prisma.InputJsonValue,
+          source,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo guardar la caché persistente key=${key}: ${this.getErrorMessage(
+          error,
+        )}`,
+      );
+    }
+  }
+
+  private async rememberAnimeSnapshots(
+    animes: AnimeDto[],
+    source: CacheSource,
+  ): Promise<void> {
+    const uniqueAnimes = Array.from(
+      new Map(animes.map((anime) => [anime.id, anime])).values(),
+    );
+
+    if (uniqueAnimes.length === 0) {
+      return;
+    }
+
+    await Promise.all(
+      uniqueAnimes.flatMap((anime) => [
+        this.cacheManager.set(
+          `anime:${anime.id}:raw:multi:v1`,
+          anime,
+          this.cacheTtlMs,
+        ),
+        this.cacheManager.set(
+          `anime:item:${anime.id}:multi:v1`,
+          anime,
+          this.cacheTtlMs,
+        ),
+      ]),
+    );
+
+    try {
+      await this.prisma.$transaction(
+        uniqueAnimes.flatMap((anime) => [
+          this.prismaCacheClient.animeApiCache.upsert({
+            where: {
+              key: `anime:${anime.id}:raw:multi:v1`,
+            },
+            create: {
+              key: `anime:${anime.id}:raw:multi:v1`,
+              payload:
+                anime as unknown as Prisma.InputJsonValue,
+              source,
+            },
+            update: {
+              payload:
+                anime as unknown as Prisma.InputJsonValue,
+              source,
+            },
+          }),
+          this.prismaCacheClient.animeApiCache.upsert({
+            where: {
+              key: `anime:item:${anime.id}:multi:v1`,
+            },
+            create: {
+              key: `anime:item:${anime.id}:multi:v1`,
+              payload:
+                anime as unknown as Prisma.InputJsonValue,
+              source,
+            },
+            update: {
+              payload:
+                anime as unknown as Prisma.InputJsonValue,
+              source,
+            },
+          }),
+        ]),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron persistir snapshots de anime: ${this.getErrorMessage(
+          error,
+        )}`,
+      );
+    }
+  }
+
+  private async findStoredAnimeById(
+    animeId: number,
+  ): Promise<AnimeDto | null> {
+    const direct = await this.readPersistentCache<AnimeDto>(
+      `anime:${animeId}:raw:multi:v1`,
+    );
+
+    if (direct?.value) {
+      return direct.value;
+    }
+
+    const item = await this.readPersistentCache<AnimeDto>(
+      `anime:item:${animeId}:multi:v1`,
+    );
+
+    return item?.value ?? null;
+  }
+
+  private async getStoredAnimeSnapshots(
+    limit: number,
+  ): Promise<AnimeDto[]> {
+    try {
+      const rows = await this.prismaCacheClient.animeApiCache.findMany({
+        where: {
+          key: {
+            startsWith: 'anime:item:',
+          },
+        },
+        orderBy: {
+          updatedAt: 'desc',
+        },
+        take: Math.min(Math.max(limit, 1), 500),
+      });
+
+      const unique = new Map<number, AnimeDto>();
+
+      for (const row of rows) {
+        const anime = row.payload as unknown as AnimeDto;
+
+        if (
+          anime &&
+          typeof anime.id === 'number' &&
+          !unique.has(anime.id)
+        ) {
+          unique.set(anime.id, anime);
+        }
+      }
+
+      return Array.from(unique.values());
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron recuperar snapshots persistentes: ${this.getErrorMessage(
+          error,
+        )}`,
       );
 
-      const perMinuteWait =
-        this.jikanRequestTimestamps.length >=
-        AnimeService.JIKAN_MAX_REQUESTS_PER_WINDOW
-          ? Math.max(
-              0,
-              this.jikanRequestTimestamps[0] +
-                AnimeService.JIKAN_WINDOW_MS -
-                now,
-            )
-          : 0;
-
-      const waitMs = Math.max(perSecondWait, perMinuteWait);
-
-      if (waitMs <= 0) {
-        this.jikanRequestTimestamps.push(Date.now());
-        return;
-      }
-
-      await this.sleep(waitMs);
+      return [];
     }
   }
 
-  private async executeJikanRequest<T>(
-    request: () => Promise<T>,
-    requestId: string | undefined,
-    endpoint: string,
-  ): Promise<T> {
-    let lastError: unknown;
+  private async searchStoredAnime(
+    query: string,
+    limit: number,
+  ): Promise<AnimeDto[]> {
+    const normalized = this.normalizeText(query);
+    const snapshots = await this.getStoredAnimeSnapshots(500);
 
-    for (
-      let attempt = 1;
-      attempt <= AnimeService.JIKAN_MAX_ATTEMPTS;
-      attempt += 1
-    ) {
-      try {
-        return await this.enqueueJikanRequest(request);
-      } catch (error) {
-        lastError = error;
-
-        const upstreamStatus = this.getUpstreamStatus(error);
-        const retryable =
-          upstreamStatus === undefined ||
-          upstreamStatus === HttpStatus.TOO_MANY_REQUESTS ||
-          upstreamStatus >= HttpStatus.INTERNAL_SERVER_ERROR;
-
-        if (!retryable || attempt === AnimeService.JIKAN_MAX_ATTEMPTS) {
-          break;
-        }
-
-        const retryDelayMs = this.getRetryDelayMs(error, attempt);
-
-        this.logger.warn(
-          `Jikan falló en ${endpoint}. status=${upstreamStatus ?? 'network'} ` +
-            `attempt=${attempt}/${AnimeService.JIKAN_MAX_ATTEMPTS}. ` +
-            `Reintentando en ${retryDelayMs}ms`,
+    return snapshots
+      .filter((anime) => {
+        const text = this.normalizeText(
+          `${anime.title} ${anime.originalTitle ?? ''} ${
+            anime.synopsis
+          } ${anime.genres.map((genre) => genre.name).join(' ')}`,
         );
 
-        await this.sleep(retryDelayMs);
-      }
+        return text.includes(normalized);
+      })
+      .slice(0, limit);
+  }
+
+  private getEmergencyCatalog(): AnimeDto[] {
+    return AnimeService.EMERGENCY_CATALOG.map((anime) => ({
+      ...anime,
+      genres: anime.genres.map((genre) => ({ ...genre })),
+    }));
+  }
+
+  private buildFallbackCulturalNotes(anime: AnimeDto): string[] {
+    const notes: string[] = [
+      'La información cultural ampliada no pudo actualizarse en este momento. Se muestra la última ficha disponible para mantener el acceso al contenido.',
+    ];
+
+    if (anime.releaseYear) {
+      notes.push(`Año de estreno registrado: ${anime.releaseYear}.`);
     }
 
-    throw this.buildUpstreamError(lastError, requestId, endpoint);
-  }
-
-  private getUpstreamStatus(error: unknown): number | undefined {
-    return (error as { response?: { status?: number } })?.response?.status;
-  }
-
-  private getRetryDelayMs(error: unknown, attempt: number): number {
-    const retryAfter = (
-      error as {
-        response?: {
-          headers?: Record<string, string | number | undefined>;
-        };
-      }
-    )?.response?.headers?.['retry-after'];
-
-    if (retryAfter !== undefined) {
-      const retryAfterValue = String(retryAfter).trim();
-      const seconds = Number(retryAfterValue);
-
-      if (Number.isFinite(seconds) && seconds >= 0) {
-        return Math.max(1_000, Math.ceil(seconds * 1_000));
-      }
-
-      const retryDate = Date.parse(retryAfterValue);
-
-      if (!Number.isNaN(retryDate)) {
-        return Math.max(1_000, retryDate - Date.now());
-      }
+    if (anime.genres.length > 0) {
+      notes.push(
+        `Géneros asociados: ${anime.genres
+          .map((genre) => genre.name)
+          .join(', ')}.`,
+      );
     }
 
-    return 1_000 * attempt;
+    return notes;
   }
 
-  private sleep(milliseconds: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, milliseconds));
-  }
-
-  private buildUpstreamError(
-    error: unknown,
-    requestId: string | undefined,
-    endpoint: string,
-  ) {
-    const axiosError = error as {
-      response?: {
-        status?: number;
-        data?: {
-          message?: string;
-          error?: string;
-        };
-      };
-      message?: string;
-      code?: string;
-    };
-
-    const upstreamStatus = axiosError.response?.status;
-
-    const statusCode =
-      upstreamStatus === HttpStatus.TOO_MANY_REQUESTS ||
-      (upstreamStatus !== undefined &&
-        upstreamStatus >= HttpStatus.INTERNAL_SERVER_ERROR)
-        ? HttpStatus.SERVICE_UNAVAILABLE
-        : HttpStatus.BAD_GATEWAY;
-
-    const upstreamMessage =
-      axiosError.response?.data?.message ?? axiosError.response?.data?.error;
-
-    const fallbackMessage = `Jikan upstream request failed at ${endpoint}`;
-
-    return new HttpException(
-      {
-        error: {
-          code: 'UPSTREAM_FAILURE',
-          message: upstreamMessage ?? axiosError.message ?? fallbackMessage,
-          upstream: 'jikan',
-          upstreamStatus: upstreamStatus ?? null,
-          endpoint,
-          requestId: requestId ?? null,
-        },
-      },
-      statusCode,
-    );
+  private clampLimit(limit: number, max: number): number {
+    return Math.min(Math.max(Math.trunc(limit) || 1, 1), max);
   }
 
   private buildCulturalNotes(anime: AnimeDto, source: JikanAnime): string[] {
@@ -1088,6 +1896,10 @@ export class AnimeService {
       return 'Sinopsis no disponible.';
     }
 
+    if (this.isLikelySpanish(cleanSynopsis)) {
+      return cleanSynopsis;
+    }
+
     if (!this.translateSynopses) {
       this.logger.warn(
         `Traducción desactivada. animeId=${animeId ?? 'unknown'}`,
@@ -1408,6 +2220,13 @@ export class AnimeService {
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>');
+  }
+
+  private isLikelySpanish(text: string): boolean {
+    const commonSpanishWords =
+      /\b(el|la|los|las|un|una|de|del|que|y|en|con|para|por|su|sus|una|como|mientras)\b/gi;
+
+    return (text.match(commonSpanishWords)?.length ?? 0) >= 3;
   }
 
   private normalizeText(text: string): string {

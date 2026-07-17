@@ -23,6 +23,20 @@ class EnvironmentVariables {
   JIKAN_BASE_URL?: string;
 
   @IsOptional()
+  @IsString()
+  @IsUrl()
+  ANILIST_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsUrl()
+  KITSU_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  ANIME_PROVIDER_ORDER?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   CACHE_TTL_SECONDS?: number;
@@ -65,7 +79,9 @@ export function validateEnvironment(config: Record<string, unknown>) {
   });
 
   if (errors.length > 0) {
-    throw new Error(`Environment validation error: ${errors.toString()}`);
+    throw new Error(
+      `Environment validation error: ${errors.toString()}`,
+    );
   }
 
   return validatedConfig;

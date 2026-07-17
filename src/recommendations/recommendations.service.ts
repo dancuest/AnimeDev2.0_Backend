@@ -607,39 +607,30 @@ export class RecommendationsService {
     animeIds: number[],
     requestId?: string,
   ): Promise<AnimeDto[]> {
-    if (!animeIds.length) return [];
-
-    const animeList: AnimeDto[] = [];
-    const candidateIds = animeIds.slice(0, this.MAX_DETAIL_CANDIDATES);
-
-    /**
-     * Las consultas son secuenciales para no crear una ráfaga contra Jikan.
-     * translateSynopsis=false evita traducir sinopsis que solo se usan
-     * como datos auxiliares para calcular el ranking.
-     */
-    for (const animeId of candidateIds) {
-      try {
-        const result = await this.animeService.getById(
-          animeId,
-          requestId,
-          false,
-        );
-
-        animeList.push(result.data);
-
-        if (animeList.length >= this.TARGET_RECOMMENDATIONS) {
-          break;
-        }
-      } catch (error) {
-        this.logger.warn(
-          `No se pudo cargar el candidato animeId=${animeId}: ${this.getErrorMessage(
-            error,
-          )}`,
-        );
-      }
+    if (!animeIds.length) {
+      return [];
     }
 
-    return animeList;
+    const candidateIds = animeIds.slice(
+      0,
+      this.MAX_DETAIL_CANDIDATES,
+    );
+
+    try {
+      return await this.animeService.getManyByIds(
+        candidateIds,
+        requestId,
+        false,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo completar el lote de candidatos: ${this.getErrorMessage(
+          error,
+        )}`,
+      );
+
+      return [];
+    }
   }
 
   private getErrorMessage(error: unknown): string {

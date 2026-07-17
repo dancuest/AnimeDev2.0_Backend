@@ -56,6 +56,16 @@ model UserInteraction {
   @@index([userId, type])
 }
 
+model AnimeApiCache {
+  key       String   @id
+  payload   Json
+  source    String   @default("unknown")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
 model TriviaQuestion {
   id                 String               @id @default(uuid())
   animeId            Int
