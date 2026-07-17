@@ -1,3 +1,5 @@
+// Este archivo pertenece al módulo de anime y se encarga de manejar la información de los animes, ya sea para listarlos, filtrarlos o enriquecerlos.
+
 export enum DurationType {
   SHORT = 'SHORT',
   MEDIUM = 'MEDIUM',

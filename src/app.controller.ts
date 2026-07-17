@@ -1,5 +1,7 @@
 import { Controller, Get, Head, HttpCode } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+// Este controlador expone rutas básicas para comprobar que la API responde correctamente y para dar un primer punto de entrada al sistema.
+
 
 const appInfo = {
   status: 'ok',
@@ -23,6 +25,8 @@ const appInfo = {
 @ApiTags('app')
 @Controller()
 export class AppController {
+  // Este endpoint sirve como puerta de entrada al backend.
+  // Siempre que lo reviso, me ayuda a recordar qué rutas quedan expuestas.
   @Get()
   @ApiOperation({ summary: 'API landing endpoint' })
   @ApiOkResponse({

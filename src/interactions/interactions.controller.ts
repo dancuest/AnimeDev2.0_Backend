@@ -1,4 +1,6 @@
 import {
+// Este archivo gestiona las interacciones del usuario con el contenido, algo clave para construir el historial y alimentar las recomendaciones.
+
   Controller,
   DefaultValuePipe,
   Get,

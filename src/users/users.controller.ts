@@ -1,4 +1,6 @@
 import {
+// Aquí se concentran las operaciones relacionadas con usuarios, perfiles y preferencias, que luego alimentan el resto del sistema.
+
   BadRequestException,
   Body,
   Controller,

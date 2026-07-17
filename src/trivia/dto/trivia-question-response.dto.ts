@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+// Aquí está la lógica del módulo de trivia, donde se crean, consultan y gestionan las preguntas del juego.
+
   TriviaCategory,
   TriviaDifficulty,
   TriviaQuestionSource,

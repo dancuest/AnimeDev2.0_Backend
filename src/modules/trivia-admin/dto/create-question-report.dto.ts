@@ -1,4 +1,6 @@
 import {
+// Este archivo define la estructura de los datos que recibe o devuelve la API, lo que ayuda a mantener los contratos más claros entre capas.
+
     IsInt,
     IsNotEmpty,
     IsOptional,

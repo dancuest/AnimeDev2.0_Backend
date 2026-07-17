@@ -1,4 +1,6 @@
 import {
+// Este archivo forma parte del motor de recomendaciones. Aquí se define cómo se interpreta el comportamiento del usuario para sugerir contenido más útil.
+
   Controller,
   Get,
   Req,
@@ -22,6 +24,8 @@ import { RecommendationsResponseDto } from './dto/recommendations-swagger.dto';
 @ApiBearerAuth('access-token')
 @Controller('recommendations')
 export class RecommendationsController {
+  // Este controlador recibe la petición del usuario y la delega al servicio del recomendador.
+  // En la práctica, aquí solo organizo la entrada y dejo la lógica más pesada en otra capa.
   constructor(
     private readonly recommendationsService: RecommendationsService,
   ) { }

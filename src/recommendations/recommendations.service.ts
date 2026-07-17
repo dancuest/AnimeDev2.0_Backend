@@ -4,6 +4,8 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AnimeDto, DurationType } from "../anime/dto/anime.dto";
 import { AnimeService } from "../anime/anime.service";
 import { calculateCosineSimilarity } from "./algorithms/cosine-similarity.util";
+// Este archivo forma parte del motor de recomendaciones. Aquí se define cómo se interpreta el comportamiento del usuario para sugerir contenido más útil.
+
 
 type UserSettingsSnapshot = {
   ageRange: number;
@@ -23,17 +25,9 @@ type RecommendationMeta = {
 export class RecommendationsService {
   private readonly logger = new Logger(RecommendationsService.name);
 
-  /**
-   * Base interaction weights used to build user vectors.
-   *
-   * For TRIVIA_SCORE:
-   * - if payload includes score and totalQuestions, the effective weight is
-   *   calculated from accuracy: (score / totalQuestions) * TRIVIA_SCORE_MAX_WEIGHT
-   * - if payload includes score but not totalQuestions, the fallback is
-   *   score / TRIVIA_SCORE_NORMALIZER
-   * - if payload does not include a valid numeric score, the map value below
-   *   works as a final fallback
-   */
+  // Aquí está el corazón del recomendador.
+  // Reúne las interacciones del usuario, sus preferencias y el contexto del sistema para decidir qué anime conviene mostrar.
+
   private readonly WEIGHTS: Record<InteractionType, number> = {
     FAVORITE: 5,
     VIEW: 0.35,
@@ -55,7 +49,6 @@ export class RecommendationsService {
   private readonly MAX_DETAIL_CANDIDATES = 12;
   private readonly TARGET_RECOMMENDATIONS = 10;
 
-  // Hybrid weights tuned to reduce collaborative noise and respect user preferences more.
   private readonly HYBRID_CF_WEIGHT = 0.6;
   private readonly HYBRID_GENRE_WEIGHT = 0.25;
   private readonly HYBRID_DURATION_WEIGHT = 0.1;
@@ -76,6 +69,8 @@ export class RecommendationsService {
     private readonly animeService: AnimeService,
   ) { }
 
+  // Este método es el punto de entrada del recomendador.
+  // Primero reviso si hay suficiente información para usar filtrado colaborativo; si no, paso a una lógica más básica guiada por preferencias.
   async getAdaptiveRecommendations(userId: string, requestId?: string) {
     const [allInteractions, settingsRaw] = await Promise.all([
       this.prisma.userInteraction.findMany(),
@@ -220,6 +215,8 @@ export class RecommendationsService {
     };
   }
 
+  // Aquí convierto las interacciones del usuario en algo que se puede comparar.
+  // Cada perfil queda representado con una especie de puntuación por anime, según lo que ha visto, marcado o rechazado.
   private buildUserVectors(
     allInteractions: Array<{
       userId: string;
@@ -293,6 +290,8 @@ export class RecommendationsService {
     return userVectors;
   }
 
+  // Aquí comparo al usuario actual con otros perfiles para encontrar gente con gustos parecidos.
+  // Si el patrón coincide, los animes que les gustaron a ellos pueden ser buenos candidatos para él.
   private calculateCollaborativeScores(
     userId: string,
     userVectors: Map<string, Map<number, number>>,
@@ -355,6 +354,8 @@ export class RecommendationsService {
     return predictedScores;
   }
 
+  // Este flujo sirve cuando el usuario todavía no tiene suficientes interacciones.
+  // En ese caso, me apoyo más en lo que dijo explícitamente que le gusta y menos en datos demográficos.
   private async getColdStartRecommendations(
     settings: UserSettingsSnapshot,
     requestId: string | undefined,
@@ -450,6 +451,7 @@ export class RecommendationsService {
       .length;
   }
 
+  // Esto evita que el sistema termine recomendando solo dramas muy genéricos cuando el usuario ya mostró gustos más concretos.
   private getGenericDramaPenalty(
     anime: AnimeDto,
     preferredGenres: number[],
@@ -479,6 +481,8 @@ export class RecommendationsService {
     return 0;
   }
 
+  // Este es el respaldo final del sistema.
+  // Si no hay suficiente señal o algo falla, devuelvo animes populares para que la app no quede vacía.
   private async getTopFallback(requestId?: string, reason = "no_signal") {
     this.logger.warn(`Using top-anime fallback strategy (reason=${reason})`);
 

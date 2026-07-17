@@ -1,4 +1,8 @@
 import {
+// Este servicio concentra la lógica de negocio del módulo de administración de trivia.
+// Aquí se procesan los reportes, se validan las preguntas y se coordina la carga de contenido con Prisma y el módulo de anime.
+// Es el cerebro del flujo administrativo: decide qué se aprueba, qué se rechaza y cómo se guarda en la base de datos.
+
   BadRequestException,
   ForbiddenException,
   Injectable,

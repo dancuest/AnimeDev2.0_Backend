@@ -2,6 +2,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TriviaDifficulty } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+// Aquí está la lógica del módulo de trivia, donde se crean, consultan y gestionan las preguntas del juego.
+
 
 export class QueryTriviaQuestionDto {
   @ApiPropertyOptional({

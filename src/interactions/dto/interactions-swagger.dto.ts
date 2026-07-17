@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InteractionType } from '@prisma/client';
+// Este archivo gestiona las interacciones del usuario con el contenido, algo clave para construir el historial y alimentar las recomendaciones.
+
 
 export class InteractionRecordResponseDto {
   @ApiProperty({ example: 'cly8e2mws0001abcd1234efgh' })

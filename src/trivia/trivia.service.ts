@@ -1,4 +1,6 @@
 import {
+// Aquí está la lógica del módulo de trivia, donde se crean, consultan y gestionan las preguntas del juego.
+
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -18,6 +20,8 @@ import { QueryTriviaQuestionDto } from './dto/query-trivia-question.dto';
 
 @Injectable()
 export class TriviaService {
+  // Este servicio maneja la lógica del trivia.
+  // Permite crear preguntas, revisarlas y usarlas para medir la interacción del usuario.
   constructor(private readonly prisma: PrismaService) { }
 
   async getApprovedQuestions(animeId: number, query: QueryTriviaQuestionDto) {

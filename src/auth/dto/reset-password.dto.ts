@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength } from 'class-validator';
+// Aquí va la lógica de autenticación del proyecto: login, registro, recuperación de cuenta y validación de sesiones.
+
 
 export class ResetPasswordDto {
   @ApiProperty({

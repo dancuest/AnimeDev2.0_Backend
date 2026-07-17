@@ -1,3 +1,5 @@
+// Este archivo forma parte de la estructura del proyecto y ayuda a organizar una funcionalidad concreta del backend.
+
 export default () => ({
   port: parseInt(process.env.PORT ?? '3000', 10),
 

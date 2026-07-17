@@ -1,6 +1,8 @@
 import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+// Este módulo reúne las distintas piezas del backend para que Nest pueda ensamblarlas y dejar la app lista para funcionar.
+
 
 import configuration from '../config/configuration';
 import { validateEnvironment } from '../config/env.validation';
@@ -16,6 +18,8 @@ import { TriviaModule } from './trivia/trivia.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
+  // Este es el punto de ensamblaje principal del backend.
+  // Aquí se registran los módulos que hacen funcionar la API completa.
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,

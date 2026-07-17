@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+// Aquí va la lógica de autenticación del proyecto: login, registro, recuperación de cuenta y validación de sesiones.
+
 
 export class AuthProfileResponseDto {
   @ApiProperty({ example: '6e371561-2132-4040-9809-efe4f5b39e02' })

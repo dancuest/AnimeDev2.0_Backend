@@ -1,4 +1,6 @@
 import {
+// Aquí está la lógica del módulo de trivia, donde se crean, consultan y gestionan las preguntas del juego.
+
   Body,
   Controller,
   Get,

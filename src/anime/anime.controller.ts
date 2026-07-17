@@ -1,4 +1,6 @@
 import {
+// Este archivo pertenece al módulo de anime y se encarga de manejar la información de los animes, ya sea para listarlos, filtrarlos o enriquecerlos.
+
   Controller,
   Get,
   Param,
@@ -27,6 +29,8 @@ import {
 @ApiTags('anime')
 @Controller('anime')
 export class AnimeController {
+  // Este controlador expone la información de anime al frontend.
+  // Aquí se reciben las peticiones de listado, búsqueda y detalle.
   constructor(private readonly animeService: AnimeService) {}
 
   @Get('top')

@@ -1,5 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import {
+// Este archivo forma parte de la estructura del proyecto y ayuda a organizar una funcionalidad concreta del backend.
+
   IsBooleanString,
   IsEmail,
   IsInt,

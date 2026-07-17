@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import {
+// Aquí va la lógica de autenticación del proyecto: login, registro, recuperación de cuenta y validación de sesiones.
+
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -26,6 +28,8 @@ import {
 @ApiTags('autenticación')
 @Controller('auth')
 export class AuthController {
+  // Aquí están las puertas de entrada para la autenticación.
+  // Desde acá se gestionan login, registro y recuperación de sesión.
   constructor(private readonly auth: AuthService) { }
 
   @Post('device')

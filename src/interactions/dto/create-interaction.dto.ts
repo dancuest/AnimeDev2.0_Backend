@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InteractionType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsObject, IsOptional, Min } from 'class-validator';
+// Este archivo gestiona las interacciones del usuario con el contenido, algo clave para construir el historial y alimentar las recomendaciones.
+
 
 export class CreateInteractionDto {
   @ApiProperty({

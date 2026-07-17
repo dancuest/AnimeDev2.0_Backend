@@ -1,4 +1,6 @@
-﻿const { Pool } = require('pg');
+// Este archivo forma parte de la estructura del proyecto y ayuda a organizar una funcionalidad concreta del backend.
+
+const { Pool } = require('pg');
 
 const targetEmail = process.argv[2];
 

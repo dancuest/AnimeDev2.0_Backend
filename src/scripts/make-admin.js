@@ -1,3 +1,5 @@
+// Este archivo sirve para tareas auxiliares de mantenimiento o inicialización del proyecto.
+
 const { Pool } = require('pg');
 
 const targetEmail = process.argv[2];

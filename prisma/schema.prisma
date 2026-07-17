@@ -1,3 +1,5 @@
+// Este archivo conecta el proyecto con Prisma y define la estructura de datos de la base de datos que usa el backend.
+
 generator client {
   provider = "prisma-client-js"
 }

@@ -1,4 +1,8 @@
 import {
+// Este controlador expone los endpoints del panel de administración de trivia.
+// Aquí se reciben las peticiones para revisar reportes, importar preguntas y gestionar el contenido del juego.
+// Se integra con el servicio de trivia y con el módulo de anime para poder buscar referencias y validar datos.
+
     Body,
     Controller,
     DefaultValuePipe,

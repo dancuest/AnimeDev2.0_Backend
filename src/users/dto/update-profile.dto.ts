@@ -1,6 +1,8 @@
 import { Transform } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+// Aquí se concentran las operaciones relacionadas con usuarios, perfiles y preferencias, que luego alimentan el resto del sistema.
+
 
 const normalizeOptionalString = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') return value;

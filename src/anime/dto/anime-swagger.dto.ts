@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DurationType, EmissionStatus } from './anime.dto';
+// Este archivo pertenece al módulo de anime y se encarga de manejar la información de los animes, ya sea para listarlos, filtrarlos o enriquecerlos.
+
 
 export class AnimeGenreResponseDto {
   @ApiProperty({ example: '1' })

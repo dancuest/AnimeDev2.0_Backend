@@ -2,9 +2,13 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InteractionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateInteractionDto } from './dto/create-interaction.dto';
+// Este archivo gestiona las interacciones del usuario con el contenido, algo clave para construir el historial y alimentar las recomendaciones.
+
 
 @Injectable()
 export class InteractionsService {
+  // Aquí se registran las acciones del usuario sobre los animes.
+  // Eso luego sirve para alimentar el recomendador y el historial del perfil.
   private readonly logger = new Logger(InteractionsService.name);
 
   constructor(private readonly prisma: PrismaService) {}

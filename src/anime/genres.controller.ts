@@ -4,6 +4,8 @@ import { Request } from 'express';
 import { AnimeService } from './anime.service';
 import { GenresQueryDto } from './dto/anime-query.dto';
 import { AnimeGenreCatalogResponseDto } from './dto/anime-swagger.dto';
+// Este archivo pertenece al módulo de anime y se encarga de manejar la información de los animes, ya sea para listarlos, filtrarlos o enriquecerlos.
+
 
 @ApiTags('géneros')
 @Controller('genres')

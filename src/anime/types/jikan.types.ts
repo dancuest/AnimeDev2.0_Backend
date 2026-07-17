@@ -1,3 +1,5 @@
+// Este archivo pertenece al módulo de anime y se encarga de manejar la información de los animes, ya sea para listarlos, filtrarlos o enriquecerlos.
+
 export interface JikanPagination {
   last_visible_page?: number;
   has_next_page?: boolean;
