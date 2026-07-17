@@ -48,13 +48,6 @@ export class RecommendationsService {
   private readonly MIN_USER_INTERACTIONS_FOR_COLLAB = 3;
   private readonly COLD_START_POOL_LIMIT = 25;
 
-  /**
-   * Evita solicitar decenas de detalles a Jikan durante una sola carga.
-   * Se consultan algunos candidatos adicionales por si uno falla.
-   */
-  private readonly MAX_DETAIL_CANDIDATES = 12;
-  private readonly TARGET_RECOMMENDATIONS = 10;
-
   // Hybrid weights tuned to reduce collaborative noise and respect user preferences more.
   private readonly HYBRID_CF_WEIGHT = 0.6;
   private readonly HYBRID_GENRE_WEIGHT = 0.25;
@@ -142,7 +135,7 @@ export class RecommendationsService {
 
     const sortedCollaborative = Array.from(collaborativeScores.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, this.MAX_DETAIL_CANDIDATES);
+      .slice(0, 60);
 
     const animeDetails = await this.fetchAnimeDetails(
       sortedCollaborative.map(([animeId]) => animeId),
@@ -609,44 +602,18 @@ export class RecommendationsService {
   ): Promise<AnimeDto[]> {
     if (!animeIds.length) return [];
 
+    const details = await Promise.allSettled(
+      animeIds.map((animeId) => this.animeService.getById(animeId, requestId)),
+    );
+
     const animeList: AnimeDto[] = [];
-    const candidateIds = animeIds.slice(0, this.MAX_DETAIL_CANDIDATES);
 
-    /**
-     * Las consultas son secuenciales para no crear una ráfaga contra Jikan.
-     * translateSynopsis=false evita traducir sinopsis que solo se usan
-     * como datos auxiliares para calcular el ranking.
-     */
-    for (const animeId of candidateIds) {
-      try {
-        const result = await this.animeService.getById(
-          animeId,
-          requestId,
-          false,
-        );
-
-        animeList.push(result.data);
-
-        if (animeList.length >= this.TARGET_RECOMMENDATIONS) {
-          break;
-        }
-      } catch (error) {
-        this.logger.warn(
-          `No se pudo cargar el candidato animeId=${animeId}: ${this.getErrorMessage(
-            error,
-          )}`,
-        );
+    for (const result of details) {
+      if (result.status === "fulfilled") {
+        animeList.push(result.value.data);
       }
     }
 
     return animeList;
-  }
-
-  private getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return String(error);
   }
 }
