@@ -189,6 +189,10 @@ function translateGenreName(id: string, name: string): string {
   );
 }
 
+
+// Este archivo es grande y tiene varias responsabilidades.
+// Aquí se agrupan varias lógicas relacionadas para mantener el sistema organizado.
+
 export class AnimeMapper {
   toGenreDto(genre: { mal_id: number; name: string }): GenreDto {
     const id = String(genre.mal_id);

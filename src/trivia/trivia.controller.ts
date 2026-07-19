@@ -42,6 +42,10 @@ type AuthenticatedRequest = Request & {
 };
 
 @ApiTags('trivia')
+
+// Este controlador expone las rutas del módulo de trivia.
+// Recibe las peticiones del cliente y delega la operación al servicio correspondiente.
+
 @Controller('trivia')
 export class TriviaController {
   constructor(private readonly triviaService: TriviaService) { }

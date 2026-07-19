@@ -26,6 +26,10 @@ type BulkImportIssue = {
   reason: string;
 };
 
+
+// Este servicio administra el flujo de trivia para los moderadores.
+// Coordina reportes, validación y carga de preguntas desde el panel administrativo.
+
 @Injectable()
 export class TriviaAdminService {
   constructor(

@@ -69,6 +69,10 @@ interface ProviderResolution<T> {
 
 type ProviderCallbacks<T> = Record<AnimeProviderName, () => Promise<T>>;
 
+
+// Este servicio es el corazón del módulo de anime.
+// Aquí se unen la obtención de datos, el cache, el enriquecimiento y la lógica de fallback para responder de forma consistente.
+
 @Injectable()
 export class AnimeService {
   private readonly logger = new Logger(AnimeService.name);

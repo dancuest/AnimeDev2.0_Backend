@@ -9,6 +9,7 @@
     "target": "ES2021",
     "moduleResolution": "node",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,

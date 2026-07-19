@@ -1,5 +1,5 @@
 import {
-// Aquí va la lógica de autenticación del proyecto: login, registro, recuperación de cuenta y validación de sesiones.
+// Aquí está la lógica de autenticación del proyecto: login, registro, recuperación de cuenta y control de sesión.
 
   ConflictException,
   Injectable,
@@ -16,10 +16,14 @@ type RegisterPayload = {
   displayName?: string;
 };
 
+
+// Este servicio concentra la lógica de autenticación.
+// Aquí manejo login, registro, recuperación y todo lo relacionado con la sesión del usuario.
+
 @Injectable()
 export class AuthService {
   // Aquí está la lógica de autenticación del proyecto.
-  // Desde aquí se maneja login, registro, recuperación de contraseña y la sesión del usuario.
+  // Desde acá voy controlando cómo entra el usuario, cómo se registra y cómo se mantiene dentro del sistema.
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,

@@ -2,8 +2,8 @@ import { HttpService } from '@nestjs/axios';
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { lastValueFrom } from 'rxjs';
-// Este archivo pertenece al módulo de anime y se encarga de manejar la información de los animes, ya sea para listarlos, filtrarlos o enriquecerlos.
-
+// Este proveedor conecta el backend con AniList para traer información de anime.
+// Sirve como puente entre la API externa y el formato interno que usa el servicio principal del módulo de anime.
 
 import {
   findAnimeGenreById,
@@ -108,6 +108,10 @@ interface AniListPagePayload {
   } | null;
 }
 
+
+// Este archivo implementa un proveedor externo para anime.
+// Su trabajo es consultar una fuente de datos y convertirla al formato interno del proyecto.
+
 @Injectable()
 export class AniListProvider {
   readonly name = 'anilist' as const;
@@ -133,6 +137,7 @@ export class AniListProvider {
       'https://graphql.anilist.co';
   }
 
+  // Este método trae los animes más populares desde AniList para alimentar la vista de inicio o las listas destacadas.
   async getTop(
     limit: number,
     includeAdult = false,
@@ -164,6 +169,7 @@ export class AniListProvider {
     return this.fetchPage(query, { page: 1, perPage }, 'top');
   }
 
+  // Este método busca animes por texto libre, útil cuando el usuario escribe un nombre o parte de un título.
   async search(
     search: string,
     limit: number,
@@ -201,6 +207,8 @@ export class AniListProvider {
     );
   }
 
+  // Estos métodos recuperan un anime puntual usando el identificador de MyAnimeList.
+  // El primero trae la información básica y el segundo añade relaciones y metadata extra cuando hace falta.
   async getByMalId(id: number): Promise<JikanAnime> {
     return this.fetchSingleByMalId(id, false);
   }
@@ -209,6 +217,7 @@ export class AniListProvider {
     return this.fetchSingleByMalId(id, true);
   }
 
+  // Este método filtra los resultados por género para que el backend pueda responder consultas más específicas del catálogo.
   async getByGenre(
     genreId: string,
     limit: number,
@@ -267,6 +276,7 @@ export class AniListProvider {
     );
   }
 
+  // Este método permite resolver varios animes a la vez a partir de una lista de ids, algo útil para cargar lotes de datos de forma más eficiente.
   async getManyByMalIds(ids: number[]): Promise<JikanAnime[]> {
     const uniqueIds = Array.from(
       new Set(ids.filter((id) => Number.isInteger(id) && id > 0)),
@@ -304,6 +314,7 @@ export class AniListProvider {
       .map((media) => this.toJikanAnime(media));
   }
 
+  // Este bloque centraliza la llamada a AniList para obtener un anime concreto y convertirlo al formato usado por el proyecto.
   private async fetchSingleByMalId(
     id: number,
     includeRelations: boolean,
@@ -334,6 +345,7 @@ export class AniListProvider {
     return this.toJikanAnime(payload.Media);
   }
 
+  // Este bloque reutiliza la misma consulta para obtener páginas completas de resultados y normalizarlas antes de devolverlas.
   private async fetchPage(
     query: string,
     variables: Record<string, unknown>,
@@ -438,6 +450,7 @@ export class AniListProvider {
     `;
   }
 
+  // Este método maneja la comunicación real con AniList, incluyendo reintentos, throttling y manejo de errores de red o GraphQL.
   private async request<T>(
     query: string,
     variables: Record<string, unknown>,
@@ -555,6 +568,7 @@ export class AniListProvider {
     return task;
   }
 
+  // Este método transforma la respuesta cruda de AniList al modelo interno del proyecto, preparando títulos, géneros, imágenes y relaciones.
   private toJikanAnime(media: AniListMedia): JikanAnime {
     const genres = this.toNamedResources([
       ...(media.genres ?? []),

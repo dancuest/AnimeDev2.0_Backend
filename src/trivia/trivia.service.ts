@@ -18,9 +18,13 @@ import { BulkImportTriviaQuestionDto } from './dto/bulk-import-trivia-question.d
 import { CreateTriviaQuestionDto } from './dto/create-trivia-question.dto';
 import { QueryTriviaQuestionDto } from './dto/query-trivia-question.dto';
 
+
+// Este servicio gestiona la lógica del módulo de trivia.
+// Aquí creo, consulto y administro las preguntas y su estado dentro del sistema.
+
 @Injectable()
 export class TriviaService {
-  // Este servicio maneja la lógica del trivia.
+  // Este servicio es el centro del flujo de trivia.
   // Permite crear preguntas, revisarlas y usarlas para medir la interacción del usuario.
   constructor(private readonly prisma: PrismaService) { }
 

@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AnimeService } from '../anime/anime.service';
 import { InteractionsService } from '../interactions/interactions.service';
-// Aquí se concentran las operaciones relacionadas con usuarios, perfiles y preferencias, que luego alimentan el resto del sistema.
+// Aquí concentro todo lo que tiene que ver con el perfil del usuario, sus preferencias y la información que luego alimenta al sistema.
 
 
 type UpdateProfileDto = {
@@ -25,10 +25,14 @@ type UpdateSettingsDto = {
   toggles?: any;
 };
 
+
+// Este servicio concentra la lógica de perfil y preferencias.
+// Aquí voy actualizando datos del usuario y gestionando lo que necesita para que el resto del sistema lo use bien.
+
 @Injectable()
 export class UsersService {
-  // Este servicio concentra la lógica del perfil del usuario.
-  // Aquí se leen y actualizan datos personales, preferencias y estado de interacción.
+  // Este servicio es el punto de referencia para el perfil del usuario.
+  // Aquí leo y actualizo datos personales, preferencias y parte del estado de interacción.
   private readonly logger = new Logger(UsersService.name);
 
   constructor(

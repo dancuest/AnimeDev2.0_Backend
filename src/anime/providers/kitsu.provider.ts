@@ -48,6 +48,10 @@ interface KitsuResponse {
   };
 }
 
+
+// Este archivo implementa un proveedor externo para anime.
+// Su trabajo es consultar una fuente de datos y convertirla al formato interno del proyecto.
+
 @Injectable()
 export class KitsuProvider {
   readonly name = 'kitsu' as const;

@@ -4,7 +4,7 @@ import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { RequestIdMiddleware } from './common/request-id.middleware';
-// Este es el punto de entrada del backend. Aquí se levanta la aplicación NestJS y se prepara el arranque principal del proyecto.
+// Este es el punto de entrada del backend. Aquí levanto la aplicación NestJS y preparo el arranque principal del proyecto.
 
 
 function applyGlobalSwaggerBearerAuth(document: OpenAPIObject) {
@@ -27,7 +27,7 @@ function applyGlobalSwaggerBearerAuth(document: OpenAPIObject) {
 
 async function bootstrap() {
   // Aquí empieza realmente la API.
-  // Es el lugar donde se activan Swagger, validaciones globales y el middleware de request id.
+  // En este punto activo Swagger, las validaciones globales y el middleware de request id.
   const app = await NestFactory.create(AppModule);
 
   app.use(json({ limit: '8mb' }));
