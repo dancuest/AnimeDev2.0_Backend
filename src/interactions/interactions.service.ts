@@ -1,9 +1,16 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
+
 import { InteractionType } from '@prisma/client';
+
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateInteractionDto } from './dto/create-interaction.dto';
-// Aquí registro las interacciones del usuario con el contenido, algo clave para construir el historial y alimentar las recomendaciones.
 
+// Este archivo gestiona las interacciones del usuario con el contenido,
+// algo clave para construir el historial y alimentar las recomendaciones.
 
 @Injectable()
 export class InteractionsService {
@@ -96,34 +103,138 @@ export class InteractionsService {
     });
   }
 
-  async getFavoriteAnimeIds(userId: string): Promise<number[]> {
-    const interactions = await this.prisma.userInteraction.findMany({
-      where: {
-        userId,
-        type: {
-          in: [InteractionType.FAVORITE, InteractionType.UNFAVORITE],
-        },
-      },
-      select: {
-        animeId: true,
-        type: true,
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+  /**
+   * Obtiene el estado actual de las interacciones relevantes
+   * del usuario con un anime.
+   *
+   * FAVORITE / UNFAVORITE controlan únicamente isFavorite.
+   * DISLIKE controla únicamente hasDisliked.
+   *
+   * Por lo tanto, ambas señales pueden coexistir:
+   *
+   * FAVORITE + DISLIKE
+   *
+   * produce:
+   *
+   * isFavorite = true
+   * hasDisliked = true
+   */
+  async getInteractionStatus(
+    userId: string,
+    animeId: number,
+  ) {
+    if (animeId <= 0) {
+      throw new BadRequestException(
+        'animeId must be greater than 0',
+      );
+    }
 
-    const latestByAnime = new Map<number, InteractionType>();
+    const interactions =
+      await this.prisma.userInteraction.findMany({
+        where: {
+          userId,
+          animeId,
+          type: {
+            in: [
+              InteractionType.FAVORITE,
+              InteractionType.UNFAVORITE,
+              InteractionType.DISLIKE,
+            ],
+          },
+        },
+        select: {
+          type: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+    /*
+     * FAVORITE / UNFAVORITE
+     *
+     * Se evalúan independientemente de DISLIKE.
+     *
+     * Solo la interacción más reciente entre FAVORITE
+     * y UNFAVORITE determina el estado actual de favorito.
+     */
+    const favoriteInteractions = interactions.filter(
+      (interaction) =>
+        interaction.type === InteractionType.FAVORITE ||
+        interaction.type === InteractionType.UNFAVORITE,
+    );
+
+    const latestFavoriteInteraction =
+      favoriteInteractions[0] ?? null;
+
+    const isFavorite =
+      latestFavoriteInteraction?.type ===
+      InteractionType.FAVORITE;
+
+    /*
+     * DISLIKE
+     *
+     * Se evalúa independientemente de FAVORITE/UNFAVORITE.
+     *
+     * Si existe una interacción DISLIKE, la UI puede
+     * representar que el usuario ya expresó esa señal.
+     *
+     * En consecuencia, FAVORITE + DISLIKE puede coexistir.
+     */
+    const hasDisliked = interactions.some(
+      (interaction) =>
+        interaction.type === InteractionType.DISLIKE,
+    );
+
+    return {
+      animeId,
+      isFavorite,
+      hasDisliked,
+    };
+  }
+
+  async getFavoriteAnimeIds(
+    userId: string,
+  ): Promise<number[]> {
+    const interactions =
+      await this.prisma.userInteraction.findMany({
+        where: {
+          userId,
+          type: {
+            in: [
+              InteractionType.FAVORITE,
+              InteractionType.UNFAVORITE,
+            ],
+          },
+        },
+        select: {
+          animeId: true,
+          type: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+    const latestByAnime =
+      new Map<number, InteractionType>();
 
     for (const interaction of interactions) {
       if (!latestByAnime.has(interaction.animeId)) {
-        latestByAnime.set(interaction.animeId, interaction.type);
+        latestByAnime.set(
+          interaction.animeId,
+          interaction.type,
+        );
       }
     }
 
     return Array.from(latestByAnime.entries())
-      .filter(([, type]) => type === InteractionType.FAVORITE)
+      .filter(
+        ([, type]) =>
+          type === InteractionType.FAVORITE,
+      )
       .map(([animeId]) => animeId);
   }
 }

@@ -1,9 +1,8 @@
 import {
-// Este archivo gestiona las interacciones del usuario con el contenido, algo clave para construir el historial y alimentar las recomendaciones.
-
   Controller,
   DefaultValuePipe,
   Get,
+  Param,
   ParseIntPipe,
   Post,
   Body,
@@ -11,20 +10,25 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+
 import { Request } from 'express';
+
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateInteractionDto } from './dto/create-interaction.dto';
 import { InteractionsService } from './interactions.service';
+
 import {
   InteractionCreateResponseDto,
   InteractionRecordResponseDto,
@@ -35,13 +39,18 @@ import {
 @Controller('interactions')
 @UseGuards(JwtAuthGuard)
 export class InteractionsController {
-  constructor(private readonly interactionsService: InteractionsService) { }
+  constructor(
+    private readonly interactionsService: InteractionsService,
+  ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Registrar una interacción del usuario con un anime' })
+  @ApiOperation({
+    summary: 'Registrar una interacción del usuario con un anime',
+  })
   @ApiCreatedResponse({
     type: InteractionCreateResponseDto,
-    description: 'Retorna la confirmación junto con la interacción almacenada.',
+    description:
+      'Retorna la confirmación junto con la interacción almacenada.',
   })
   @ApiBadRequestResponse({
     description:
@@ -58,7 +67,9 @@ export class InteractionsController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'Listar las interacciones del usuario actual' })
+  @ApiOperation({
+    summary: 'Listar las interacciones del usuario actual',
+  })
   @ApiQuery({
     name: 'limit',
     required: false,
@@ -78,6 +89,38 @@ export class InteractionsController {
     @Req() req: Request & { user?: { userId: string } },
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
   ) {
-    return this.interactionsService.listMine(req.user!.userId, limit);
+    return this.interactionsService.listMine(
+      req.user!.userId,
+      limit,
+    );
+  }
+
+  @Get('status/:animeId')
+  @ApiOperation({
+    summary: 'Consultar el estado de interacción del usuario con un anime',
+  })
+  @ApiParam({
+    name: 'animeId',
+    example: 5114,
+    description: 'Identificador del anime',
+  })
+  @ApiOkResponse({
+    description:
+      'Retorna el estado de las interacciones relevantes del usuario con el anime.',
+  })
+  @ApiBadRequestResponse({
+    description: 'El identificador del anime no es válido.',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'El token Bearer es inexistente o inválido.',
+  })
+  getInteractionStatus(
+    @Req() req: Request & { user?: { userId: string } },
+    @Param('animeId', ParseIntPipe) animeId: number,
+  ) {
+    return this.interactionsService.getInteractionStatus(
+      req.user!.userId,
+      animeId,
+    );
   }
 }
