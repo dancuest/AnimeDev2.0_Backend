@@ -1,6 +1,8 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+// Este archivo forma parte de la estructura del proyecto y ayuda a organizar una funcionalidad concreta del backend.
+
 
 export const REQUEST_ID_HEADER = 'x-request-id';
 
